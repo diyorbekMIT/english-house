@@ -3,12 +3,12 @@ import { drizzle } from 'drizzle-orm/node-postgres';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import { Pool } from 'pg';
 
-const isProduction = process.env.NODE_ENV === 'production' || process.env['DATABASE_URL']?.includes('herokuapp.com');
+const isLocal = !process.env.DATABASE_URL || process.env.DATABASE_URL.includes('localhost');
 
 const run = async (): Promise<void> => {
   const pool = new Pool({
     connectionString: process.env['DATABASE_URL'],
-    ssl: isProduction ? { rejectUnauthorized: false } : false,
+    ssl: isLocal ? false : { rejectUnauthorized: false },
   });
   const db = drizzle(pool);
   await migrate(db, { migrationsFolder: './db/migrations' });
