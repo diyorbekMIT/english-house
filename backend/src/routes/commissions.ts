@@ -12,7 +12,7 @@ commissionsRouter.use(authenticate);
 
 commissionsRouter.get(
   '/',
-  requireRole('SUPER_ADMIN', 'MANAGER', 'ADMIN', 'DIRECTOR', 'TEACHER'),
+  requireRole('SUPER_ADMIN', 'MANAGER', 'SALES_MANAGER', 'DIRECTOR', 'TEACHER'),
   asyncHandler(async (req, res) => {
     const user = req.user!;
     const { userId: userIdFilter, status } = req.query;
@@ -45,7 +45,7 @@ commissionsRouter.get(
 // PATCH /commissions/:id/mark-paid
 commissionsRouter.patch(
   '/:id/mark-paid',
-  requireRole('ADMIN', 'SUPER_ADMIN', 'MANAGER'),
+  requireRole('SALES_MANAGER', 'SUPER_ADMIN', 'MANAGER'),
   asyncHandler(async (req, res) => {
     const id = Number(req.params['id']);
 

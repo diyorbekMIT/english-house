@@ -119,7 +119,24 @@ usersRouter.post('/manager', requireRole('SUPER_ADMIN'), asyncHandler(async (req
   res.status(201).json(result.user);
 }));
 
-// Manager or SuperAdmin creates Admin
+// Manager or SuperAdmin creates a Sales Manager (runs the call pipeline through first payment)
+usersRouter.post('/sales-manager', requireRole('MANAGER', 'SUPER_ADMIN'), asyncHandler(async (req, res) => {
+  const result = await createUser('SALES_MANAGER', req.body, req.user!.userId, {
+    managerId: req.user!.role === 'MANAGER' ? req.user!.userId : undefined,
+  });
+  if ('error' in result) { res.status(400).json(result); return; }
+  await logAudit(db, {
+    actorUserId: req.user!.userId,
+    action: 'SALES_MANAGER_CREATE',
+    entityType: 'user',
+    entityId: result.user.id,
+    description: `Sales manager '${result.user.fullName}' created`,
+  });
+  res.status(201).json(result.user);
+}));
+
+// Manager or SuperAdmin creates an Admin (takes over a student's ongoing study status
+// and subsequent payments once a Sales Manager records the first payment)
 usersRouter.post('/admin', requireRole('MANAGER', 'SUPER_ADMIN'), asyncHandler(async (req, res) => {
   const result = await createUser('ADMIN', req.body, req.user!.userId, {
     managerId: req.user!.role === 'MANAGER' ? req.user!.userId : undefined,
@@ -189,7 +206,7 @@ usersRouter.post('/teacher', requireRole('DIRECTOR', 'SUPER_ADMIN'), asyncHandle
 }));
 
 // GET /users?role=TEACHER&schoolId=...
-usersRouter.get('/', requireRole('SUPER_ADMIN', 'MANAGER', 'ADMIN', 'DIRECTOR'), asyncHandler(async (req, res) => {
+usersRouter.get('/', requireRole('SUPER_ADMIN', 'MANAGER', 'SALES_MANAGER', 'ADMIN', 'DIRECTOR'), asyncHandler(async (req, res) => {
   const { role: roleFilter, schoolId: schoolFilter } = req.query;
   const user = req.user!;
 
@@ -233,7 +250,7 @@ usersRouter.get('/', requireRole('SUPER_ADMIN', 'MANAGER', 'ADMIN', 'DIRECTOR'),
 }));
 
 // GET /users/:id
-usersRouter.get('/:id', requireRole('SUPER_ADMIN', 'MANAGER', 'ADMIN', 'DIRECTOR'), asyncHandler(async (req, res) => {
+usersRouter.get('/:id', requireRole('SUPER_ADMIN', 'MANAGER', 'SALES_MANAGER', 'ADMIN', 'DIRECTOR'), asyncHandler(async (req, res) => {
   const id = Number(req.params['id']);
   const [row] = await db
     .select({ id: users.id, fullName: users.fullName, phone: users.phone, email: users.email, isActive: users.isActive, role: roles.name, schoolId: users.schoolId, meta: users.meta })

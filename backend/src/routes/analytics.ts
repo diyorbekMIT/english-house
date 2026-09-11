@@ -17,6 +17,19 @@ import { desc, eq, and } from 'drizzle-orm';
 export const analyticsRouter = Router();
 analyticsRouter.use(authenticate);
 
+// Order matters: longer/more specific keywords must be checked before shorter ones
+// that could be a substring of another status's audit description text.
+const CALL_STATUS_KEYWORDS = [
+  'STARTED_STUDYING',
+  'FIRST_LESSON',
+  'MADE_PAYMENT',
+  'REGISTERED',
+  'REJECTED',
+  'WAITING',
+  'CALLED',
+  'ACCEPTED', // legacy, pre-pipeline
+] as const;
+
 // CEO / SuperAdmin analytics endpoint with date range filter support
 analyticsRouter.get('/ceo-summary', requireRole('SUPER_ADMIN'), asyncHandler(async (req, res) => {
   const { startDate, endDate } = req.query;
@@ -61,11 +74,20 @@ analyticsRouter.get('/ceo-summary', requireRole('SUPER_ADMIN'), asyncHandler(asy
   const paidStudentIds = new Set(allPayments.map((p) => p.studentId));
   const paidStudentsCount = paidStudentIds.size;
   const unpaidStudentsCount = Math.max(0, totalLeads - paidStudentsCount);
-  const studyingStudents = allStudents.filter((s) => s.studyStatus === 'STUDYING').length;
-  const stoppedStudents = allStudents.filter((s) => s.studyStatus === 'STOPPED').length;
+  // studyStatus is now binary (ACTIVE/NOACTIVE) — field names kept as studyingStudents/
+  // stoppedStudents so existing frontend consumers don't need to change.
+  const studyingStudents = allStudents.filter((s) => s.studyStatus === 'ACTIVE').length;
+  const stoppedStudents = allStudents.filter((s) => s.studyStatus === 'NOACTIVE').length;
   const waitingLeads = allStudents.filter((s) => s.callStatus === 'WAITING').length;
-  const acceptedLeads = allStudents.filter((s) => s.callStatus === 'ACCEPTED').length;
+  const calledLeads = allStudents.filter((s) => s.callStatus === 'CALLED').length;
+  const registeredLeads = allStudents.filter((s) => s.callStatus === 'REGISTERED').length;
+  const firstLessonLeads = allStudents.filter((s) => s.callStatus === 'FIRST_LESSON').length;
+  const startedStudyingLeads = allStudents.filter((s) => s.callStatus === 'STARTED_STUDYING').length;
+  const madePaymentLeads = allStudents.filter((s) => s.callStatus === 'MADE_PAYMENT').length;
   const rejectedLeads = allStudents.filter((s) => s.callStatus === 'REJECTED').length;
+  // acceptedLeads: aggregate of every stage past WAITING and not REJECTED — kept for
+  // existing consumers that only expect 3 buckets (waiting/accepted/rejected).
+  const acceptedLeads = calledLeads + registeredLeads + firstLessonLeads + startedStudyingLeads + madePaymentLeads;
 
   const overall = {
     totalLeads,
@@ -77,6 +99,11 @@ analyticsRouter.get('/ceo-summary', requireRole('SUPER_ADMIN'), asyncHandler(asy
     stopped: stoppedStudents,
     studyingStudents,
     stoppedStudents,
+    calledLeads,
+    registeredLeads,
+    firstLessonLeads,
+    startedStudyingLeads,
+    madePaymentLeads,
     paidStudentsCount,
     unpaidStudentsCount,
     totalRevenueUzs,
@@ -128,7 +155,7 @@ analyticsRouter.get('/ceo-summary', requireRole('SUPER_ADMIN'), asyncHandler(asy
     endDate: toLocalDateString(end),
     leadsCount: periodStudents.length,
     waitingCount: periodStudents.filter((s) => s.callStatus === 'WAITING').length,
-    acceptedCount: periodStudents.filter((s) => s.callStatus === 'ACCEPTED').length,
+    acceptedCount: periodStudents.filter((s) => s.callStatus !== 'WAITING' && s.callStatus !== 'REJECTED').length,
     rejectedCount: periodStudents.filter((s) => s.callStatus === 'REJECTED').length,
     callsMadeCount: periodCalls.length,
     paidStudentsCount: periodPaidCount,
@@ -235,13 +262,21 @@ analyticsRouter.get('/ceo-summary', requireRole('SUPER_ADMIN'), asyncHandler(asy
     const stat = adminStatsMap.get(adminId)!;
     stat.totalCalls += 1;
 
+    // details.callStatus is reliably written going forward; description-text matching
+    // is only a fallback for older audit rows recorded before that field existed.
+    // 'ACCEPTED' is a historical value (pre-pipeline) folded into the "accepted" bucket.
     const detailsStatus = (log.details as { callStatus?: string })?.callStatus;
-    if (detailsStatus === 'ACCEPTED' || log.description.includes('ACCEPTED')) {
-      stat.accepted += 1;
-    } else if (detailsStatus === 'REJECTED' || log.description.includes('REJECTED')) {
+    const status = detailsStatus ?? (
+      CALL_STATUS_KEYWORDS.find((k) => log.description.includes(k)) ?? undefined
+    );
+
+    if (status === 'REJECTED') {
       stat.rejected += 1;
-    } else if (detailsStatus === 'WAITING' || log.description.includes('WAITING')) {
+    } else if (status === 'WAITING') {
       stat.waiting += 1;
+    } else if (status) {
+      // ACCEPTED (legacy) + CALLED/REGISTERED/FIRST_LESSON/STARTED_STUDYING/MADE_PAYMENT
+      stat.accepted += 1;
     }
   }
 
@@ -249,12 +284,9 @@ analyticsRouter.get('/ceo-summary', requireRole('SUPER_ADMIN'), asyncHandler(asy
 
   // 7. Recent calls with extracted callStatus
   const recentCalls = callAuditLogs.slice(0, 20).map((l) => {
-    let callStatus = (l.details as { callStatus?: string })?.callStatus;
+    let callStatus: string | undefined = (l.details as { callStatus?: string })?.callStatus;
     if (!callStatus || callStatus === 'UNKNOWN') {
-      if (l.description.includes('ACCEPTED')) callStatus = 'ACCEPTED';
-      else if (l.description.includes('REJECTED')) callStatus = 'REJECTED';
-      else if (l.description.includes('WAITING')) callStatus = 'WAITING';
-      else callStatus = 'ACCEPTED';
+      callStatus = CALL_STATUS_KEYWORDS.find((k) => l.description.includes(k)) ?? 'WAITING';
     }
 
     return {
@@ -277,7 +309,7 @@ analyticsRouter.get('/ceo-summary', requireRole('SUPER_ADMIN'), asyncHandler(asy
       (u) => u.schoolId === sch.id && u.roleName === 'TEACHER',
     );
     const studentsInSchool = allStudents.filter((s) => s.schoolId === sch.id);
-    const studyingInSchool = studentsInSchool.filter((s) => s.studyStatus === 'STUDYING').length;
+    const studyingInSchool = studentsInSchool.filter((s) => s.studyStatus === 'ACTIVE').length;
     const schoolStudentIds = new Set(studentsInSchool.map((s) => s.id));
     const schoolRevenue = allPayments
       .filter((p) => schoolStudentIds.has(p.studentId))
@@ -302,7 +334,7 @@ analyticsRouter.get('/ceo-summary', requireRole('SUPER_ADMIN'), asyncHandler(asy
   const teacherUsers = allUsers.filter((u) => u.roleName === 'TEACHER');
   const teachersSummary = teacherUsers.map((t) => {
     const teacherStudents = allStudents.filter((s) => s.teacherId === t.id);
-    const studyingCount = teacherStudents.filter((s) => s.studyStatus === 'STUDYING').length;
+    const studyingCount = teacherStudents.filter((s) => s.studyStatus === 'ACTIVE').length;
     const teacherStudentIds = new Set(teacherStudents.map((s) => s.id));
     const paidCount = Array.from(paidStudentIds).filter((id) => teacherStudentIds.has(id)).length;
     const teacherComms = allCommissions.filter((c) => c.userId === t.id);
@@ -414,11 +446,11 @@ analyticsRouter.get('/director-summary', requireRole('DIRECTOR'), asyncHandler(a
 
   // 5. Aggregate metrics
   const totalStudents = schoolStudents.length;
-  const studyingStudents = schoolStudents.filter((s) => s.studyStatus === 'STUDYING').length;
-  const stoppedStudents = schoolStudents.filter((s) => s.studyStatus === 'STOPPED').length;
+  const studyingStudents = schoolStudents.filter((s) => s.studyStatus === 'ACTIVE').length;
+  const stoppedStudents = schoolStudents.filter((s) => s.studyStatus === 'NOACTIVE').length;
   const waitingLeads = schoolStudents.filter((s) => s.callStatus === 'WAITING').length;
-  const acceptedLeads = schoolStudents.filter((s) => s.callStatus === 'ACCEPTED').length;
   const rejectedLeads = schoolStudents.filter((s) => s.callStatus === 'REJECTED').length;
+  const acceptedLeads = schoolStudents.filter((s) => s.callStatus !== 'WAITING' && s.callStatus !== 'REJECTED').length;
 
   const summary = {
     school: schoolInfo,
@@ -453,15 +485,15 @@ analyticsRouter.get('/director-summary', requireRole('DIRECTOR'), asyncHandler(a
       date: dateStr,
       label: `${d.getDate()}-${d.toLocaleDateString('uz-UZ', { month: 'short' })} (${dayName})`,
       newStudents: dayStudents.length,
-      studyingCount: dayStudents.filter((s) => s.studyStatus === 'STUDYING').length,
+      studyingCount: dayStudents.filter((s) => s.studyStatus === 'ACTIVE').length,
     });
   }
 
   // 7. Teacher performance breakdown for director
   const teachersPerformance = schoolTeachers.map((t) => {
     const tStudents = schoolStudents.filter((s) => s.teacherId === t.id);
-    const studying = tStudents.filter((s) => s.studyStatus === 'STUDYING').length;
-    const stopped = tStudents.filter((s) => s.studyStatus === 'STOPPED').length;
+    const studying = tStudents.filter((s) => s.studyStatus === 'ACTIVE').length;
+    const stopped = tStudents.filter((s) => s.studyStatus === 'NOACTIVE').length;
     return {
       id: t.id,
       fullName: t.fullName,
@@ -532,11 +564,11 @@ analyticsRouter.get('/teacher-summary', requireRole('TEACHER'), asyncHandler(asy
 
   // 4. Metrics
   const totalStudents = myStudents.length;
-  const studyingStudents = myStudents.filter((s) => s.studyStatus === 'STUDYING').length;
-  const stoppedStudents = myStudents.filter((s) => s.studyStatus === 'STOPPED').length;
+  const studyingStudents = myStudents.filter((s) => s.studyStatus === 'ACTIVE').length;
+  const stoppedStudents = myStudents.filter((s) => s.studyStatus === 'NOACTIVE').length;
   const waitingLeads = myStudents.filter((s) => s.callStatus === 'WAITING').length;
-  const acceptedLeads = myStudents.filter((s) => s.callStatus === 'ACCEPTED').length;
   const rejectedLeads = myStudents.filter((s) => s.callStatus === 'REJECTED').length;
+  const acceptedLeads = myStudents.filter((s) => s.callStatus !== 'WAITING' && s.callStatus !== 'REJECTED').length;
 
   const summary = {
     school: schoolInfo,
@@ -571,7 +603,7 @@ analyticsRouter.get('/teacher-summary', requireRole('TEACHER'), asyncHandler(asy
       date: dateStr,
       label: `${d.getDate()}-${d.toLocaleDateString('uz-UZ', { month: 'short' })} (${dayName})`,
       newStudents: dayStudents.length,
-      studyingCount: dayStudents.filter((s) => s.studyStatus === 'STUDYING').length,
+      studyingCount: dayStudents.filter((s) => s.studyStatus === 'ACTIVE').length,
     });
   }
 

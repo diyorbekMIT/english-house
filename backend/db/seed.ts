@@ -12,7 +12,7 @@ import { db } from './client.js';
 import { roles, users, commissionRules } from './schema.js';
 import { eq } from 'drizzle-orm';
 
-const ROLES = ['SUPER_ADMIN', 'MANAGER', 'ADMIN', 'DIRECTOR', 'TEACHER'] as const;
+const ROLES = ['SUPER_ADMIN', 'MANAGER', 'SALES_MANAGER', 'ADMIN', 'DIRECTOR', 'TEACHER'] as const;
 
 const run = async (): Promise<void> => {
   console.log('Seeding roles…');

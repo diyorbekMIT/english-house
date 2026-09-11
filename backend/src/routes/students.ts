@@ -1,11 +1,11 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { db } from '../../db/client.js';
-import { students, schools, users, roles } from '../../db/schema.js';
+import { students, schools, users, roles, monthlyPayments } from '../../db/schema.js';
 import { authenticate, requireRole } from '../middleware/auth.js';
 import { logAudit } from '../middleware/audit.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
-import { and, or, desc, eq, like, SQL } from 'drizzle-orm';
+import { and, or, desc, eq, like, inArray, notInArray, SQL } from 'drizzle-orm';
 
 export const studentsRouter = Router();
 studentsRouter.use(authenticate);
@@ -29,15 +29,13 @@ const CreateStudentSchema = z.object({
   schoolId: z.number().int().optional(),
   directorId: z.number().int().optional(),
   teacherId: z.number().int().optional(),
-  callStatus: z.enum(['WAITING', 'ACCEPTED', 'REJECTED']).optional().default('WAITING'),
-  studyStatus: z.enum(['STUDYING', 'STOPPED']).optional().default('STOPPED'),
   callNote: z.string().max(500).optional(),
   meta: z.record(z.unknown()).optional(),
 });
 
 studentsRouter.post(
   '/',
-  requireRole('TEACHER', 'ADMIN', 'DIRECTOR', 'MANAGER', 'SUPER_ADMIN'),
+  requireRole('TEACHER', 'SALES_MANAGER', 'DIRECTOR', 'MANAGER', 'SUPER_ADMIN'),
   asyncHandler(async (req, res) => {
     const parsed = CreateStudentSchema.safeParse(req.body);
     if (!parsed.success) { res.status(400).json({ error: parsed.error.flatten() }); return; }
@@ -142,8 +140,8 @@ studentsRouter.post(
           schoolId,
           directorId,
           teacherId,
-          callStatus: parsed.data.callStatus,
-          studyStatus: parsed.data.studyStatus,
+          // callStatus/studyStatus intentionally omitted: every new student
+          // starts at the WAITING/NOACTIVE column defaults, no exceptions.
           callNote: parsed.data.callNote ?? null,
           meta: parsed.data.meta ?? null,
         })
@@ -171,10 +169,10 @@ studentsRouter.post(
 
 studentsRouter.get(
   '/',
-  requireRole('TEACHER', 'ADMIN', 'DIRECTOR', 'MANAGER', 'SUPER_ADMIN'),
+  requireRole('TEACHER', 'SALES_MANAGER', 'ADMIN', 'DIRECTOR', 'MANAGER', 'SUPER_ADMIN'),
   asyncHandler(async (req, res) => {
     const user = req.user!;
-    const { callStatus, studyStatus, schoolId, teacherId } = req.query;
+    const { callStatus, studyStatus, schoolId, teacherId, hasFirstPayment } = req.query;
 
     const conditions: SQL[] = [];
     if (user.role === 'TEACHER') {
@@ -191,10 +189,30 @@ studentsRouter.get(
         conditions.push(eq(students.schoolId, dirSchoolId));
       }
     }
-    if (callStatus) conditions.push(eq(students.callStatus, String(callStatus) as 'WAITING' | 'ACCEPTED' | 'REJECTED'));
-    if (studyStatus) conditions.push(eq(students.studyStatus, String(studyStatus) as 'STUDYING' | 'STOPPED'));
+    // SALES_MANAGER's job ends at the first payment — once that's recorded, the
+    // student hands off to Admin, so it automatically drops off Sales Manager's list.
+    if (user.role === 'SALES_MANAGER') {
+      conditions.push(
+        notInArray(
+          students.id,
+          db.select({ id: monthlyPayments.studentId }).from(monthlyPayments).where(eq(monthlyPayments.isFirstPayment, true)),
+        ),
+      );
+    }
+    if (callStatus) conditions.push(eq(students.callStatus, String(callStatus) as typeof students.$inferSelect.callStatus));
+    if (studyStatus) conditions.push(eq(students.studyStatus, String(studyStatus) as typeof students.$inferSelect.studyStatus));
     if (schoolId) conditions.push(eq(students.schoolId, Number(schoolId)));
     if (teacherId) conditions.push(eq(students.teacherId, Number(teacherId)));
+    // Powers the Admin panel: only students a Sales Manager has already taken through
+    // their first payment — that's the hand-off point where the work becomes Admin's.
+    if (hasFirstPayment === 'true') {
+      conditions.push(
+        inArray(
+          students.id,
+          db.select({ id: monthlyPayments.studentId }).from(monthlyPayments).where(eq(monthlyPayments.isFirstPayment, true)),
+        ),
+      );
+    }
 
     const rows = await db
       .select({
@@ -226,7 +244,7 @@ studentsRouter.get(
   }),
 );
 
-studentsRouter.get('/:id', requireRole('TEACHER', 'ADMIN', 'DIRECTOR', 'MANAGER', 'SUPER_ADMIN'), asyncHandler(async (req, res) => {
+studentsRouter.get('/:id', requireRole('TEACHER', 'SALES_MANAGER', 'ADMIN', 'DIRECTOR', 'MANAGER', 'SUPER_ADMIN'), asyncHandler(async (req, res) => {
   const id = Number(req.params['id']);
   const [student] = await db
     .select({
@@ -257,22 +275,52 @@ studentsRouter.get('/:id', requireRole('TEACHER', 'ADMIN', 'DIRECTOR', 'MANAGER'
   res.json(student);
 }));
 
+const CALL_STATUS_VALUES = [
+  'WAITING',
+  'CALLED',
+  'REGISTERED',
+  'FIRST_LESSON',
+  'STARTED_STUDYING',
+  'MADE_PAYMENT',
+  'REJECTED',
+] as const;
+
+// Reaching MADE_PAYMENT automatically activates the student — this is what
+// director/teacher commissions will be based on, so it's a one-way trigger,
+// not something callStatus can silently undo again. Returns undefined when no
+// automatic studyStatus change should happen.
+export const deriveStudyStatusOnCallStatusChange = (
+  callStatus: (typeof CALL_STATUS_VALUES)[number],
+): 'ACTIVE' | undefined => (callStatus === 'MADE_PAYMENT' ? 'ACTIVE' : undefined);
+
+// Only SALES_MANAGER and SUPER_ADMIN (CEO) may change call status — this is the lead
+// pipeline SALES_MANAGER owns through MADE_PAYMENT; ADMIN takes over after that (see
+// /:id/study-status below), so ADMIN is deliberately not included here.
 studentsRouter.patch(
   '/:id/call-status',
-  requireRole('ADMIN', 'DIRECTOR', 'MANAGER', 'SUPER_ADMIN'),
+  requireRole('SALES_MANAGER', 'SUPER_ADMIN'),
   asyncHandler(async (req, res) => {
     const id = Number(req.params['id']);
     const schema = z.object({
-      callStatus: z.enum(['WAITING', 'ACCEPTED', 'REJECTED']),
+      callStatus: z.enum(CALL_STATUS_VALUES),
       callNote: z.string().max(500).optional(),
     });
     const parsed = schema.safeParse(req.body);
     if (!parsed.success) { res.status(400).json({ error: parsed.error.flatten() }); return; }
 
-    const updateData: { callStatus: 'WAITING' | 'ACCEPTED' | 'REJECTED'; updatedAt: Date; callNote?: string | null } = {
+    const updateData: {
+      callStatus: typeof students.$inferSelect.callStatus;
+      studyStatus?: typeof students.$inferSelect.studyStatus;
+      updatedAt: Date;
+      callNote?: string | null;
+    } = {
       callStatus: parsed.data.callStatus,
       updatedAt: new Date(),
     };
+    const derivedStudyStatus = deriveStudyStatusOnCallStatusChange(parsed.data.callStatus);
+    if (derivedStudyStatus) {
+      updateData.studyStatus = derivedStudyStatus;
+    }
     // Always write callNote (even if empty string, to clear previous note)
     if (parsed.data.callNote !== undefined) {
       updateData.callNote = parsed.data.callNote || null;
@@ -307,10 +355,10 @@ studentsRouter.patch(
 
 studentsRouter.patch(
   '/:id/study-status',
-  requireRole('ADMIN', 'DIRECTOR', 'TEACHER', 'MANAGER', 'SUPER_ADMIN'),
+  requireRole('ADMIN', 'SALES_MANAGER', 'SUPER_ADMIN'),
   asyncHandler(async (req, res) => {
     const id = Number(req.params['id']);
-    const schema = z.object({ studyStatus: z.enum(['STUDYING', 'STOPPED']) });
+    const schema = z.object({ studyStatus: z.enum(['ACTIVE', 'NOACTIVE']) });
     const parsed = schema.safeParse(req.body);
     if (!parsed.success) { res.status(400).json({ error: parsed.error.flatten() }); return; }
 

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { normalizePhone } from '../routes/students.js';
+import { normalizePhone, deriveStudyStatusOnCallStatusChange } from '../routes/students.js';
 import { computeBalance } from '../lib/balance.js';
 
 describe('Phone Normalization', () => {
@@ -39,6 +39,21 @@ describe('Commission Calculation Math', () => {
   it('returns 0 when amount or rate is zero', () => {
     expect(calculateCommission(0, 1000)).toBe(0);
     expect(calculateCommission(500000, 0)).toBe(0);
+  });
+});
+
+describe('Student Status Pipeline', () => {
+  it('auto-activates study status only when call status reaches MADE_PAYMENT', () => {
+    expect(deriveStudyStatusOnCallStatusChange('MADE_PAYMENT')).toBe('ACTIVE');
+  });
+
+  it('does not touch study status for any other call status', () => {
+    const nonTriggeringStatuses = [
+      'WAITING', 'CALLED', 'REGISTERED', 'FIRST_LESSON', 'STARTED_STUDYING', 'REJECTED',
+    ] as const;
+    for (const status of nonTriggeringStatuses) {
+      expect(deriveStudyStatusOnCallStatusChange(status)).toBeUndefined();
+    }
   });
 });
 

@@ -25,7 +25,7 @@ describe('Environment Guard Logic', () => {
 
 describe('Student Call Note & Status Schema Validation', () => {
   const CallStatusUpdateSchema = z.object({
-    callStatus: z.enum(['WAITING', 'ACCEPTED', 'REJECTED']),
+    callStatus: z.enum(['WAITING', 'CALLED', 'REGISTERED', 'FIRST_LESSON', 'STARTED_STUDYING', 'MADE_PAYMENT', 'REJECTED']),
     callNote: z.string().max(500).optional(),
   });
 
@@ -43,7 +43,7 @@ describe('Student Call Note & Status Schema Validation', () => {
   });
 
   it('allows callStatus without callNote', () => {
-    const input = { callStatus: 'ACCEPTED' };
+    const input = { callStatus: 'CALLED' };
     const parsed = CallStatusUpdateSchema.safeParse(input);
     expect(parsed.success).toBe(true);
   });

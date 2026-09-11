@@ -15,13 +15,17 @@ import {
 
 export const callStatusEnum = pgEnum('call_status', [
   'WAITING',
-  'ACCEPTED',
+  'CALLED',
+  'REGISTERED',
+  'FIRST_LESSON',
+  'STARTED_STUDYING',
+  'MADE_PAYMENT',
   'REJECTED',
 ]);
 
 export const studyStatusEnum = pgEnum('study_status', [
-  'STUDYING',
-  'STOPPED',
+  'ACTIVE',
+  'NOACTIVE',
 ]);
 
 export const commissionTypeEnum = pgEnum('commission_type', [
@@ -109,7 +113,7 @@ export const students = pgTable(
     directorId: integer('director_id').references(() => users.id),
     teacherId: integer('teacher_id').references(() => users.id),
     callStatus: callStatusEnum('call_status').notNull().default('WAITING'),
-    studyStatus: studyStatusEnum('study_status').notNull().default('STOPPED'),
+    studyStatus: studyStatusEnum('study_status').notNull().default('NOACTIVE'),
     callNote: text('call_note'),              // Admin's note: rejection reason, waiting reason, etc.
     meta: jsonb('meta'),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
@@ -125,22 +129,31 @@ export const students = pgTable(
   }),
 );
 
-export const monthlyPayments = pgTable('monthly_payments', {
-  id: bigserial('id', { mode: 'number' }).primaryKey(),
-  studentId: integer('student_id')
-    .notNull()
-    .references(() => students.id),
-  amountUzs: integer('amount_uzs').notNull(),
-  paidForMonth: text('paid_for_month').notNull(), // YYYY-MM
-  paidAt: timestamp('paid_at', { withTimezone: true }).defaultNow().notNull(),
-  paymentMethod: text('payment_method'),           // CASH, CARD, etc.
-  createdByUserId: integer('created_by_user_id')
-    .notNull()
-    .references(() => users.id),
-  notes: text('notes'),
-  meta: jsonb('meta'),
-  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-});
+export const monthlyPayments = pgTable(
+  'monthly_payments',
+  {
+    id: bigserial('id', { mode: 'number' }).primaryKey(),
+    studentId: integer('student_id')
+      .notNull()
+      .references(() => students.id),
+    amountUzs: integer('amount_uzs').notNull(),
+    paidForMonth: text('paid_for_month').notNull(), // YYYY-MM
+    paidAt: timestamp('paid_at', { withTimezone: true }).defaultNow().notNull(),
+    paymentMethod: text('payment_method'),           // CASH, CARD, etc.
+    createdByUserId: integer('created_by_user_id')
+      .notNull()
+      .references(() => users.id),
+    // Set once at insert time: true only for a student's very first ever payment.
+    // Director/teacher bonuses are planned to key off this flag.
+    isFirstPayment: boolean('is_first_payment').notNull().default(false),
+    notes: text('notes'),
+    meta: jsonb('meta'),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => ({
+    isFirstPaymentIdx: index('monthly_payments_is_first_payment_idx').on(t.isFirstPayment),
+  }),
+);
 
 export const commissionRules = pgTable('commission_rules', {
   id: bigserial('id', { mode: 'number' }).primaryKey(),
