@@ -28,6 +28,8 @@ const RulesSchema = z.object({
   teacherFirstPaymentPercent: z.number().int().min(0).max(10000),
   directorFirstPaymentPercent: z.number().int().min(0).max(10000),
   specialPriceUzs: z.number().int().min(0),
+  withdrawLimitTeacherUzs: z.number().int().min(0),
+  withdrawLimitDirectorUzs: z.number().int().min(0),
   validFrom: z.string().datetime().optional(),
 });
 

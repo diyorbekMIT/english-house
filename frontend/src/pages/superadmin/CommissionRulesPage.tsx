@@ -21,6 +21,8 @@ export const CommissionRulesPage = () => {
     teacherFirstPaymentPercent: '',
     directorFirstPaymentPercent: '',
     specialPriceUzs: '',
+    withdrawLimitTeacherUzs: '',
+    withdrawLimitDirectorUzs: '',
   });
   const [saved, setSaved] = useState(false);
   const { confirm, showToast } = useFeedback();
@@ -55,6 +57,8 @@ export const CommissionRulesPage = () => {
     const teacherFirstPct = Number(form.teacherFirstPaymentPercent || rules?.teacherFirstPaymentPercent || 0);
     const directorFirstPct = Number(form.directorFirstPaymentPercent || rules?.directorFirstPaymentPercent || 0);
     const specialPrice = Number(form.specialPriceUzs || rules?.specialPriceUzs || 0);
+    const withdrawLimitTeacher = Number(form.withdrawLimitTeacherUzs || rules?.withdrawLimitTeacherUzs || 0);
+    const withdrawLimitDirector = Number(form.withdrawLimitDirectorUzs || rules?.withdrawLimitDirectorUzs || 0);
 
     const confirmed = await confirm({
       title: "Komissiya qoidalarini yangilashni tasdiqlaysizmi?",
@@ -68,6 +72,8 @@ export const CommissionRulesPage = () => {
         { label: "Direktor birinchi to'lov foizi", value: `${directorFirstPct / 100}% (${directorFirstPct} b.p.)` },
         { label: "O'qituvchi oylik ulushi", value: `${teacherPct / 100}% (${teacherPct} b.p.)` },
         { label: "Direktor oylik ulushi", value: `${directorPct / 100}% (${directorPct} b.p.)` },
+        { label: "O'qituvchi yechib olish limiti", value: withdrawLimitTeacher > 0 ? `${formatUzs(withdrawLimitTeacher)} UZS` : "O'chirilgan" },
+        { label: "Direktor yechib olish limiti", value: withdrawLimitDirector > 0 ? `${formatUzs(withdrawLimitDirector)} UZS` : "O'chirilgan" },
       ],
       confirmText: "Ha, stavkalarni saqlash",
     });
@@ -81,6 +87,8 @@ export const CommissionRulesPage = () => {
       teacherFirstPaymentPercent: teacherFirstPct,
       directorFirstPaymentPercent: directorFirstPct,
       specialPriceUzs: specialPrice,
+      withdrawLimitTeacherUzs: withdrawLimitTeacher,
+      withdrawLimitDirectorUzs: withdrawLimitDirector,
     });
   };
 
@@ -122,6 +130,18 @@ export const CommissionRulesPage = () => {
           <div>
             <p className="text-xs font-semibold text-slate-500 uppercase">Direktor oylik foizi</p>
             <p className="text-lg font-bold text-teal-800 mt-0.5">{(rules.directorMonthlyPercent / 100).toFixed(2)}%</p>
+          </div>
+          <div>
+            <p className="text-xs font-semibold text-slate-500 uppercase">O'qituvchi yechib olish limiti</p>
+            <p className="text-lg font-bold text-purple-700 mt-0.5">
+              {rules.withdrawLimitTeacherUzs > 0 ? `${formatUzs(rules.withdrawLimitTeacherUzs)} UZS` : "O'chirilgan"}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs font-semibold text-slate-500 uppercase">Direktor yechib olish limiti</p>
+            <p className="text-lg font-bold text-purple-700 mt-0.5">
+              {rules.withdrawLimitDirectorUzs > 0 ? `${formatUzs(rules.withdrawLimitDirectorUzs)} UZS` : "O'chirilgan"}
+            </p>
           </div>
         </div>
       )}
@@ -212,6 +232,34 @@ export const CommissionRulesPage = () => {
                   placeholder={String(rules?.directorMonthlyPercent ?? 500)}
                   value={form.directorMonthlyPercent}
                   onChange={(e) => setForm((p) => ({ ...p, directorMonthlyPercent: e.target.value }))}
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="border-t border-slate-200 pt-4">
+            <p className="text-xs font-semibold text-purple-700 uppercase mb-2">Yechib olish limiti</p>
+            <p className="text-2xs text-slate-500 mb-3">
+              Kutilayotgan mukofot shu limitga (yoki karrasiga) yetganda, o'qituvchi/direktor o'zi yechib olish so'rovini yuborishi mumkin bo'ladi.
+              0 qoldirilsa, ushbu rol uchun yechib olish o'chirilgan bo'ladi.
+            </p>
+            <div className="space-y-4">
+              <div>
+                <label className="label">O'qituvchi yechib olish limiti (UZS)</label>
+                <AmountInput
+                  className="input"
+                  placeholder={String(rules?.withdrawLimitTeacherUzs || 300000)}
+                  value={form.withdrawLimitTeacherUzs}
+                  onChange={(raw) => setForm((p) => ({ ...p, withdrawLimitTeacherUzs: raw }))}
+                />
+              </div>
+              <div>
+                <label className="label">Direktor yechib olish limiti (UZS)</label>
+                <AmountInput
+                  className="input"
+                  placeholder={String(rules?.withdrawLimitDirectorUzs || 500000)}
+                  value={form.withdrawLimitDirectorUzs}
+                  onChange={(raw) => setForm((p) => ({ ...p, withdrawLimitDirectorUzs: raw }))}
                 />
               </div>
             </div>

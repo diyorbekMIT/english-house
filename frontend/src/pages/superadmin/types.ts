@@ -141,6 +141,29 @@ export interface CommissionRules {
   teacherFirstPaymentPercent: number;
   directorFirstPaymentPercent: number;
   specialPriceUzs: number;
+  withdrawLimitTeacherUzs: number;
+  withdrawLimitDirectorUzs: number;
+}
+
+export interface WithdrawEligibility {
+  pendingUzs: number;
+  limitUzs: number;
+  availableUzs: number;
+  withdrawableUzs: number;
+  neededUzs: number;
+}
+
+export interface WithdrawRequest {
+  id: number;
+  userId: number;
+  userFullName?: string;
+  userPhone?: string;
+  userRole?: 'TEACHER' | 'DIRECTOR';
+  amountUzs: number;
+  status: 'PENDING' | 'VERIFIED' | 'GIVEN';
+  verifiedAt?: string | null;
+  givenAt?: string | null;
+  createdAt: string;
 }
 
 export interface Payout {

@@ -51,6 +51,12 @@ export const payoutStatusEnum = pgEnum('payout_status', [
   'CANCELLED',
 ]);
 
+export const withdrawStatusEnum = pgEnum('withdraw_status', [
+  'PENDING',
+  'VERIFIED',
+  'GIVEN',
+]);
+
 // ─── Tables ───────────────────────────────────────────────────────────────────
 
 export const roles = pgTable('roles', {
@@ -185,6 +191,12 @@ export const commissionRules = pgTable('commission_rules', {
   // predictable regardless of discounts or payment amount variance. 0 means
   // "not set yet", in which case the actual amount paid is used as a fallback.
   specialPriceUzs: integer('special_price_uzs').notNull().default(0),
+  // CEO-set thresholds: a director/teacher can withdraw once their pending
+  // commission balance reaches this amount, in multiples of it (reaching 2x the
+  // limit unlocks withdrawing 2x the limit, etc). 0 means withdrawals are disabled
+  // for that role until the CEO sets a limit.
+  withdrawLimitTeacherUzs: integer('withdraw_limit_teacher_uzs').notNull().default(0),
+  withdrawLimitDirectorUzs: integer('withdraw_limit_director_uzs').notNull().default(0),
   isActive: boolean('is_active').notNull().default(true),
   validFrom: timestamp('valid_from', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
@@ -239,6 +251,33 @@ export const payouts = pgTable(
   (t) => ({
     receiverIdIdx: index('payouts_receiver_id_idx').on(t.receiverId),
     statusIdx: index('payouts_status_idx').on(t.status),
+  }),
+);
+
+// withdrawRequests: a director/teacher cashing out their pending commission
+// balance once it crosses the CEO-set limit. PENDING (requested) -> VERIFIED
+// (CEO approved, told to come collect cash) -> GIVEN (money physically handed
+// over). Kept separate from `payouts` (CEO-initiated credits/debits) since this
+// flow is initiated by the director/teacher themselves.
+export const withdrawRequests = pgTable(
+  'withdraw_requests',
+  {
+    id: bigserial('id', { mode: 'number' }).primaryKey(),
+    userId: integer('user_id')
+      .notNull()
+      .references(() => users.id),
+    amountUzs: integer('amount_uzs').notNull(),
+    status: withdrawStatusEnum('status').notNull().default('PENDING'),
+    verifiedByUserId: integer('verified_by_user_id').references(() => users.id),
+    verifiedAt: timestamp('verified_at', { withTimezone: true }),
+    givenByUserId: integer('given_by_user_id').references(() => users.id),
+    givenAt: timestamp('given_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => ({
+    userIdIdx: index('withdraw_requests_user_id_idx').on(t.userId),
+    statusIdx: index('withdraw_requests_status_idx').on(t.status),
   }),
 );
 

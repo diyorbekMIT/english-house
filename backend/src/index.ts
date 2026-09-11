@@ -9,6 +9,7 @@ import { firstPaymentsRouter } from './routes/first-payments.js';
 import { commissionsRouter } from './routes/commissions.js';
 import { commissionRulesRouter } from './routes/commission-rules.js';
 import { payoutsRouter } from './routes/payouts.js';
+import { withdrawalsRouter } from './routes/withdrawals.js';
 import { auditLogsRouter } from './routes/audit-logs.js';
 import { schoolsRouter } from './routes/schools.js';
 import { coursesRouter } from './routes/courses.js';
@@ -31,6 +32,7 @@ app.use('/first-payments', firstPaymentsRouter);
 app.use('/commissions', commissionsRouter);
 app.use('/commission-rules', commissionRulesRouter);
 app.use('/payouts', payoutsRouter);
+app.use('/withdrawals', withdrawalsRouter);
 app.use('/audit-logs', auditLogsRouter);
 app.use('/analytics', analyticsRouter);
 

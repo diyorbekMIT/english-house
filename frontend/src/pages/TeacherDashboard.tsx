@@ -12,6 +12,7 @@ import {
 } from '../components/Charts';
 import CommissionCreditCard from '../components/CommissionCreditCard';
 import PayoutHistoryList from '../components/PayoutHistoryList';
+import WithdrawPanel from '../components/WithdrawPanel';
 import { useAuth } from '../contexts/AuthContext';
 import { formatUzs } from '../lib/format';
 import { getErrorMessage } from '../lib/errors';
@@ -265,6 +266,8 @@ const TeacherOverviewDashboard = () => {
     </div>
   </div>
 </div>
+
+      <WithdrawPanel />
 
       {/* Payout history (initial bonus + CEO adjustments) */}
       <div className="card space-y-3">
@@ -690,6 +693,8 @@ const TeacherCommissionsPage = () => {
     </div>
   </div>
 </div>
+
+      <WithdrawPanel />
 
       <div className="card space-y-3">
         <h2 className="section-title">To'lovlar tarixi</h2>

@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { normalizePhone, deriveStudyStatusOnCallStatusChange } from '../routes/students.js';
 import { isEligibleForBonus, selectCommissionBaseUzs } from '../routes/payments.js';
 import { computeBalance } from '../lib/balance.js';
+import { computeWithdrawEligibility } from '../lib/withdraw.js';
 
 describe('Phone Normalization', () => {
   it('normalizes 9-digit Uzbek phone number', () => {
@@ -122,5 +123,46 @@ describe('Balance Calculation', () => {
 
     expect(balance.payoutsNetUzs).toBe(-3_000_000);
     expect(balance.balanceUzs).toBe(7_000_000);
+  });
+});
+
+describe('Withdraw Eligibility', () => {
+  it('is not withdrawable below the limit, and reports how much more is needed', () => {
+    const eligibility = computeWithdrawEligibility(200_000, 300_000, 0);
+    expect(eligibility.withdrawableUzs).toBe(0);
+    expect(eligibility.neededUzs).toBe(100_000);
+  });
+
+  it('reaching exactly the limit unlocks withdrawing exactly the limit', () => {
+    const eligibility = computeWithdrawEligibility(300_000, 300_000, 0);
+    expect(eligibility.withdrawableUzs).toBe(300_000);
+    expect(eligibility.neededUzs).toBe(0);
+  });
+
+  it('crossing the limit still only unlocks the nearest lower multiple, leaving a remainder', () => {
+    // 400,000 pending against a 300,000 limit -> only 300,000 withdrawable, 100,000 stays pending
+    const eligibility = computeWithdrawEligibility(400_000, 300_000, 0);
+    expect(eligibility.withdrawableUzs).toBe(300_000);
+    expect(eligibility.neededUzs).toBe(0);
+  });
+
+  it('reaching double the limit unlocks double the withdrawal amount', () => {
+    // 700,000 pending against a 300,000 limit -> 600,000 withdrawable (2x), 100,000 remains
+    const eligibility = computeWithdrawEligibility(700_000, 300_000, 0);
+    expect(eligibility.withdrawableUzs).toBe(600_000);
+  });
+
+  it('subtracts amounts already claimed by an open or completed withdraw request', () => {
+    // 700,000 pending, already claimed 600,000 via a prior request -> only 100,000 left, below the limit
+    const eligibility = computeWithdrawEligibility(700_000, 300_000, 600_000);
+    expect(eligibility.availableUzs).toBe(100_000);
+    expect(eligibility.withdrawableUzs).toBe(0);
+    expect(eligibility.neededUzs).toBe(200_000);
+  });
+
+  it('disables withdrawals entirely when the CEO has not configured a limit', () => {
+    const eligibility = computeWithdrawEligibility(10_000_000, 0, 0);
+    expect(eligibility.withdrawableUzs).toBe(0);
+    expect(eligibility.neededUzs).toBe(0);
   });
 });

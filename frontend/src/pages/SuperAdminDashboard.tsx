@@ -13,6 +13,7 @@ import { AdminUsersPage } from './superadmin/AdminUsersPage';
 import { CommissionRulesPage } from './superadmin/CommissionRulesPage';
 import { CoursesPage } from './superadmin/CoursesPage';
 import { PayoutsPage } from './superadmin/PayoutsPage';
+import { WithdrawalsPage } from './superadmin/WithdrawalsPage';
 import { CeoAuditLogsPage } from './superadmin/CeoAuditLogsPage';
 
 export const SuperAdminDashboard = () => (
@@ -33,6 +34,7 @@ export const SuperAdminDashboard = () => (
       <Route path="rules" element={<CommissionRulesPage />} />
       <Route path="courses" element={<CoursesPage />} />
       <Route path="payouts" element={<PayoutsPage />} />
+      <Route path="withdrawals" element={<WithdrawalsPage />} />
       <Route path="audit" element={<CeoAuditLogsPage />} />
     </Routes>
   </Layout>

@@ -25,10 +25,15 @@ const PAYOUT_COLORS: Record<string, string> = {
   COMPLETED: 'background:#DCFCE7;color:#166534',
   CANCELLED: 'background:#FEE2E2;color:#991B1B',
 };
+const WITHDRAW_COLORS: Record<string, string> = {
+  PENDING: 'background:#FEF9C3;color:#854D0E',
+  VERIFIED: 'background:#DBEAFE;color:#1E40AF',
+  GIVEN: 'background:#DCFCE7;color:#166534',
+};
 
 interface Props {
   value: string;
-  type?: 'call' | 'study' | 'commission' | 'active' | 'payout';
+  type?: 'call' | 'study' | 'commission' | 'active' | 'payout' | 'withdraw';
 }
 
 const LABELS: Record<string, string> = {
@@ -46,6 +51,8 @@ const LABELS: Record<string, string> = {
   PAID: "To'landi",
   COMPLETED: 'Bajarildi',
   CANCELLED: 'Bekor qilindi',
+  VERIFIED: 'Tasdiqlandi',
+  GIVEN: 'Berildi',
 };
 
 const StatusBadge = ({ value, type = 'call' }: Props) => {
@@ -58,6 +65,8 @@ const StatusBadge = ({ value, type = 'call' }: Props) => {
       ? ACTIVE_COLORS
       : type === 'payout'
       ? PAYOUT_COLORS
+      : type === 'withdraw'
+      ? WITHDRAW_COLORS
       : CALL_COLORS;
   const styleStr = map[value] ?? 'background:#F1F5F9;color:#475569';
   const styleObj = Object.fromEntries(

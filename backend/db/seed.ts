@@ -60,6 +60,8 @@ const run = async (): Promise<void> => {
       teacherFirstPaymentPercent: 2000,     // 20.00% on the first payment only
       directorFirstPaymentPercent: 1000,    // 10.00% on the first payment only
       specialPriceUzs: 0,                   // unset — CEO configures this later; falls back to actual amount paid
+      withdrawLimitTeacherUzs: 0,            // unset — withdrawals disabled until CEO sets a limit
+      withdrawLimitDirectorUzs: 0,
       isActive: true,
     });
     console.log('Default commission rules seeded (teacher 10%/20% first, director 5%/10% first).');
