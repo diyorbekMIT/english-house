@@ -1,22 +1,23 @@
 import 'dotenv/config';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
-import { Pool } from 'pg';
+import pg from 'pg';
 
-const isLocal = !process.env.DATABASE_URL || process.env.DATABASE_URL.includes('localhost');
+const pool = new pg.Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: process.env.DATABASE_URL?.includes('localhost') ? false : { rejectUnauthorized: false },
+});
 
-const run = async (): Promise<void> => {
-  const pool = new Pool({
-    connectionString: process.env['DATABASE_URL'],
-    ssl: isLocal ? false : { rejectUnauthorized: false },
-  });
-  const db = drizzle(pool);
-  await migrate(db, { migrationsFolder: './db/migrations' });
-  console.log('Migrations applied successfully.');
+const db = drizzle(pool);
+
+async function runMigrations() {
+  console.log('Running migrations...');
+  await migrate(db, { migrationsFolder: './drizzle' });
+  console.log('Migrations complete!');
   await pool.end();
-};
+}
 
-run().catch((err) => {
-  console.error(err);
+runMigrations().catch((err) => {
+  console.error('Migration failed:', err);
   process.exit(1);
 });

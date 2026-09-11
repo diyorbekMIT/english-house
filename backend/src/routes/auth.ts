@@ -6,15 +6,16 @@ import { db } from '../../db/client.js';
 import { users, roles } from '../../db/schema.js';
 import { eq } from 'drizzle-orm';
 import { JWT_SECRET } from '../config.js';
+import { asyncHandler } from '../middleware/asyncHandler.js';
 
 export const authRouter = Router();
 
 const LoginSchema = z.object({
-  phone: z.string().min(5),
+  phone: z.string().min(4),
   password: z.string().min(6),
 });
 
-authRouter.post('/login', async (req, res) => {
+authRouter.post('/login', asyncHandler(async (req, res) => {
   const parsed = LoginSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.flatten() });
@@ -68,4 +69,4 @@ authRouter.post('/login', async (req, res) => {
     fullName: user.fullName,
     schoolId: user.schoolId,
   });
-});
+}));

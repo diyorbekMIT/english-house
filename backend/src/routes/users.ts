@@ -2,17 +2,61 @@ import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import { db } from '../../db/client.js';
-import { users, roles, schools } from '../../db/schema.js';
+import { users, roles, schools, commissionRules, payouts } from '../../db/schema.js';
 import { authenticate, requireRole } from '../middleware/auth.js';
 import { logAudit } from '../middleware/audit.js';
-import { and, eq } from 'drizzle-orm';
+import { asyncHandler } from '../middleware/asyncHandler.js';
+import { and, desc, eq } from 'drizzle-orm';
+
+const isUniquePhoneViolation = (err: unknown): boolean =>
+  typeof err === 'object' && err !== null && (err as { code?: string }).code === '23505';
+
+// Grants the one-time signup bonus (amount snapshotted from the currently active
+// commission rules) to a newly created director/teacher. Later rule changes never
+// retroactively affect this — the amount is fixed at grant time.
+const grantInitialBonus = async (
+  receiverId: number,
+  bonusField: 'teacherSignupBonusUzs' | 'directorSignupBonusUzs',
+  actorUserId: number,
+): Promise<void> => {
+  const [activeRules] = await db
+    .select()
+    .from(commissionRules)
+    .where(eq(commissionRules.isActive, true))
+    .orderBy(desc(commissionRules.id))
+    .limit(1);
+
+  const amountUzs = activeRules?.[bonusField] ?? 0;
+  if (amountUzs <= 0) return;
+
+  const [payout] = await db
+    .insert(payouts)
+    .values({
+      makerId: null,
+      receiverId,
+      amountUzs,
+      type: 'INITIAL_BONUS',
+      status: 'COMPLETED',
+      completedAt: new Date(),
+      comments: "Ro'yxatdan o'tish boshlang'ich balansi",
+    })
+    .returning();
+
+  await logAudit(db, {
+    actorUserId,
+    action: 'INITIAL_BONUS_GRANT',
+    entityType: 'payout',
+    entityId: payout!.id,
+    description: `Initial bonus of ${amountUzs} UZS granted on registration`,
+  });
+};
 
 export const usersRouter = Router();
 usersRouter.use(authenticate);
 
 const BaseUserSchema = z.object({
   fullName: z.string().min(1),
-  phone: z.string().min(5),
+  phone: z.string().min(4),
   password: z.string().min(6),
   schoolId: z.number().int().optional(),
   email: z.string().email().optional(),
@@ -36,26 +80,33 @@ const createUser = async (
   if (!role) return { error: `Role ${roleName} not found` };
 
   const passwordHash = await bcrypt.hash(parsed.data.password, 12);
-  const [user] = await db
-    .insert(users)
-    .values({
-      fullName: parsed.data.fullName,
-      phone: parsed.data.phone,
-      passwordHash,
-      roleId: role.id,
-      schoolId: extras.schoolId ?? parsed.data.schoolId,
-      managerId: extras.managerId,
-      directorId: extras.directorId,
-      email: parsed.data.email,
-      meta: parsed.data.meta ?? null,
-    })
-    .returning({ id: users.id, fullName: users.fullName, phone: users.phone });
+  try {
+    const [user] = await db
+      .insert(users)
+      .values({
+        fullName: parsed.data.fullName,
+        phone: parsed.data.phone,
+        passwordHash,
+        roleId: role.id,
+        schoolId: extras.schoolId ?? parsed.data.schoolId,
+        managerId: extras.managerId,
+        directorId: extras.directorId,
+        email: parsed.data.email,
+        meta: parsed.data.meta ?? null,
+      })
+      .returning({ id: users.id, fullName: users.fullName, phone: users.phone });
 
-  return { user: user! };
+    return { user: user! };
+  } catch (err) {
+    if (isUniquePhoneViolation(err)) {
+      return { error: "Bu telefon raqami allaqachon ro'yxatdan o'tgan" };
+    }
+    throw err;
+  }
 };
 
 // SuperAdmin creates Manager
-usersRouter.post('/manager', requireRole('SUPER_ADMIN'), async (req, res) => {
+usersRouter.post('/manager', requireRole('SUPER_ADMIN'), asyncHandler(async (req, res) => {
   const result = await createUser('MANAGER', req.body, req.user!.userId);
   if ('error' in result) { res.status(400).json(result); return; }
   await logAudit(db, {
@@ -66,10 +117,10 @@ usersRouter.post('/manager', requireRole('SUPER_ADMIN'), async (req, res) => {
     description: `Manager '${result.user.fullName}' created by SuperAdmin`,
   });
   res.status(201).json(result.user);
-});
+}));
 
 // Manager or SuperAdmin creates Admin
-usersRouter.post('/admin', requireRole('MANAGER', 'SUPER_ADMIN'), async (req, res) => {
+usersRouter.post('/admin', requireRole('MANAGER', 'SUPER_ADMIN'), asyncHandler(async (req, res) => {
   const result = await createUser('ADMIN', req.body, req.user!.userId, {
     managerId: req.user!.role === 'MANAGER' ? req.user!.userId : undefined,
   });
@@ -82,10 +133,10 @@ usersRouter.post('/admin', requireRole('MANAGER', 'SUPER_ADMIN'), async (req, re
     description: `Admin '${result.user.fullName}' created`,
   });
   res.status(201).json(result.user);
-});
+}));
 
 // SuperAdmin creates Director
-usersRouter.post('/director', requireRole('SUPER_ADMIN'), async (req, res) => {
+usersRouter.post('/director', requireRole('SUPER_ADMIN'), asyncHandler(async (req, res) => {
   const BodySchema = BaseUserSchema.extend({ schoolId: z.number().int() });
   const parsed = BodySchema.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.flatten() }); return; }
@@ -105,11 +156,12 @@ usersRouter.post('/director', requireRole('SUPER_ADMIN'), async (req, res) => {
     entityId: result.user.id,
     description: `Director '${result.user.fullName}' created for School '${school.name}' by SuperAdmin`,
   });
+  await grantInitialBonus(result.user.id, 'directorSignupBonusUzs', req.user!.userId);
   res.status(201).json(result.user);
-});
+}));
 
 // Director (or SuperAdmin) creates Teacher
-usersRouter.post('/teacher', requireRole('DIRECTOR', 'SUPER_ADMIN'), async (req, res) => {
+usersRouter.post('/teacher', requireRole('DIRECTOR', 'SUPER_ADMIN'), asyncHandler(async (req, res) => {
   const user = req.user!;
   let schoolId = user.schoolId;
   if (user.role === 'SUPER_ADMIN') {
@@ -132,11 +184,12 @@ usersRouter.post('/teacher', requireRole('DIRECTOR', 'SUPER_ADMIN'), async (req,
     entityId: result.user.id,
     description: `Teacher '${result.user.fullName}' created by ${user.role}`,
   });
+  await grantInitialBonus(result.user.id, 'teacherSignupBonusUzs', user.userId);
   res.status(201).json(result.user);
-});
+}));
 
 // GET /users?role=TEACHER&schoolId=...
-usersRouter.get('/', requireRole('SUPER_ADMIN', 'MANAGER', 'ADMIN', 'DIRECTOR'), async (req, res) => {
+usersRouter.get('/', requireRole('SUPER_ADMIN', 'MANAGER', 'ADMIN', 'DIRECTOR'), asyncHandler(async (req, res) => {
   const { role: roleFilter, schoolId: schoolFilter } = req.query;
   const user = req.user!;
 
@@ -177,10 +230,10 @@ usersRouter.get('/', requireRole('SUPER_ADMIN', 'MANAGER', 'ADMIN', 'DIRECTOR'),
     );
 
   res.json(rows);
-});
+}));
 
 // GET /users/:id
-usersRouter.get('/:id', requireRole('SUPER_ADMIN', 'MANAGER', 'ADMIN', 'DIRECTOR'), async (req, res) => {
+usersRouter.get('/:id', requireRole('SUPER_ADMIN', 'MANAGER', 'ADMIN', 'DIRECTOR'), asyncHandler(async (req, res) => {
   const id = Number(req.params['id']);
   const [row] = await db
     .select({ id: users.id, fullName: users.fullName, phone: users.phone, email: users.email, isActive: users.isActive, role: roles.name, schoolId: users.schoolId, meta: users.meta })
@@ -189,10 +242,10 @@ usersRouter.get('/:id', requireRole('SUPER_ADMIN', 'MANAGER', 'ADMIN', 'DIRECTOR
     .where(eq(users.id, id));
   if (!row) { res.status(404).json({ error: 'Not found' }); return; }
   res.json(row);
-});
+}));
 
 // DELETE /users/:id — Strict Protection: Directors CANNOT delete teachers
-usersRouter.delete('/:id', async (req, res) => {
+usersRouter.delete('/:id', asyncHandler(async (req, res) => {
   const caller = req.user!;
 
   // Directors are strictly forbidden from deleting teachers
@@ -230,4 +283,4 @@ usersRouter.delete('/:id', async (req, res) => {
   });
 
   res.json({ message: "Foydalanuvchi muvaffaqiyatli nofaol holatga o'tkazildi" });
-});
+}));

@@ -35,6 +35,18 @@ export const commissionStatusEnum = pgEnum('commission_status', [
   'PAID',
 ]);
 
+export const payoutTypeEnum = pgEnum('payout_type', [
+  'INITIAL_BONUS',
+  'CREDIT',
+  'DEBIT',
+]);
+
+export const payoutStatusEnum = pgEnum('payout_status', [
+  'PENDING',
+  'COMPLETED',
+  'CANCELLED',
+]);
+
 // ─── Tables ───────────────────────────────────────────────────────────────────
 
 export const roles = pgTable('roles', {
@@ -165,6 +177,32 @@ export const commissions = pgTable(
     userIdIdx: index('commissions_user_id_idx').on(t.userId),
     studentIdIdx: index('commissions_student_id_idx').on(t.studentId),
     statusIdx: index('commissions_status_idx').on(t.status),
+  }),
+);
+
+// payouts: money moved between the company (CEO) and a director/teacher —
+// the automatic one-time registration bonus, plus manual CEO credits/debits.
+// Deliberately separate from `commissions` (per-student earnings) and
+// `monthlyPayments` (money students pay the school).
+export const payouts = pgTable(
+  'payouts',
+  {
+    id: bigserial('id', { mode: 'number' }).primaryKey(),
+    makerId: integer('maker_id').references(() => users.id), // null for system-granted INITIAL_BONUS
+    receiverId: integer('receiver_id')
+      .notNull()
+      .references(() => users.id),
+    amountUzs: integer('amount_uzs').notNull(),
+    type: payoutTypeEnum('type').notNull(),
+    status: payoutStatusEnum('status').notNull().default('PENDING'),
+    comments: text('comments'),
+    completedAt: timestamp('completed_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => ({
+    receiverIdIdx: index('payouts_receiver_id_idx').on(t.receiverId),
+    statusIdx: index('payouts_status_idx').on(t.status),
   }),
 );
 

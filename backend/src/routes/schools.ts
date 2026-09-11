@@ -4,6 +4,7 @@ import { db } from '../../db/client.js';
 import { schools } from '../../db/schema.js';
 import { authenticate, requireRole } from '../middleware/auth.js';
 import { logAudit } from '../middleware/audit.js';
+import { asyncHandler } from '../middleware/asyncHandler.js';
 import { eq } from 'drizzle-orm';
 
 export const schoolsRouter = Router();
@@ -19,19 +20,19 @@ const SchoolSchema = z.object({
   meta: z.record(z.unknown()).optional(),
 });
 
-schoolsRouter.get('/', async (_req, res) => {
+schoolsRouter.get('/', asyncHandler(async (_req, res) => {
   const rows = await db.select().from(schools);
   res.json(rows);
-});
+}));
 
-schoolsRouter.get('/:id', async (req, res) => {
+schoolsRouter.get('/:id', asyncHandler(async (req, res) => {
   const id = Number(req.params['id']);
   const [school] = await db.select().from(schools).where(eq(schools.id, id));
   if (!school) { res.status(404).json({ error: 'Not found' }); return; }
   res.json(school);
-});
+}));
 
-schoolsRouter.post('/', requireRole('SUPER_ADMIN'), async (req, res) => {
+schoolsRouter.post('/', requireRole('SUPER_ADMIN'), asyncHandler(async (req, res) => {
   const parsed = SchoolSchema.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.flatten() }); return; }
 
@@ -60,9 +61,9 @@ schoolsRouter.post('/', requireRole('SUPER_ADMIN'), async (req, res) => {
     details: { name: school!.name, schoolNumber: school!.schoolNumber },
   });
   res.status(201).json(school);
-});
+}));
 
-schoolsRouter.patch('/:id', requireRole('SUPER_ADMIN'), async (req, res) => {
+schoolsRouter.patch('/:id', requireRole('SUPER_ADMIN'), asyncHandler(async (req, res) => {
   const id = Number(req.params['id']);
   const parsed = SchoolSchema.partial().safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.flatten() }); return; }
@@ -82,4 +83,4 @@ schoolsRouter.patch('/:id', requireRole('SUPER_ADMIN'), async (req, res) => {
     description: `School '${school.name}' updated`,
   });
   res.json(school);
-});
+}));

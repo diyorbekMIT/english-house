@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { db } from '../../db/client.js';
 import { auditLogs, users } from '../../db/schema.js';
 import { authenticate, requireRole } from '../middleware/auth.js';
+import { asyncHandler } from '../middleware/asyncHandler.js';
 import { desc, eq, and, gte, lte, type SQL } from 'drizzle-orm';
 
 export const auditLogsRouter = Router();
@@ -11,7 +12,7 @@ auditLogsRouter.use(authenticate);
 auditLogsRouter.get(
   '/',
   requireRole('SUPER_ADMIN'),
-  async (req, res) => {
+  asyncHandler(async (req, res) => {
     const { entityType, entityId, action, actorUserId, startDate, endDate, limit = '250' } = req.query;
 
     const conditions: SQL[] = [];
@@ -62,5 +63,5 @@ auditLogsRouter.get(
       .limit(Math.min(Number(limit) || 250, 1000));
 
     res.json(rows);
-  },
+  }),
 );

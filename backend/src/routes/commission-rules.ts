@@ -4,12 +4,13 @@ import { db } from '../../db/client.js';
 import { commissionRules } from '../../db/schema.js';
 import { authenticate, requireRole } from '../middleware/auth.js';
 import { logAudit } from '../middleware/audit.js';
+import { asyncHandler } from '../middleware/asyncHandler.js';
 import { desc, eq } from 'drizzle-orm';
 
 export const commissionRulesRouter = Router();
 commissionRulesRouter.use(authenticate);
 
-commissionRulesRouter.get('/', async (_req, res) => {
+commissionRulesRouter.get('/', asyncHandler(async (_req, res) => {
   const [rules] = await db
     .select()
     .from(commissionRules)
@@ -17,7 +18,7 @@ commissionRulesRouter.get('/', async (_req, res) => {
     .orderBy(desc(commissionRules.id))
     .limit(1);
   res.json(rules ?? null);
-});
+}));
 
 const RulesSchema = z.object({
   teacherSignupBonusUzs: z.number().int().min(0),
@@ -27,7 +28,7 @@ const RulesSchema = z.object({
   validFrom: z.string().datetime().optional(),
 });
 
-commissionRulesRouter.put('/', requireRole('SUPER_ADMIN'), async (req, res) => {
+commissionRulesRouter.put('/', requireRole('SUPER_ADMIN'), asyncHandler(async (req, res) => {
   const parsed = RulesSchema.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.flatten() }); return; }
 
@@ -48,4 +49,4 @@ commissionRulesRouter.put('/', requireRole('SUPER_ADMIN'), async (req, res) => {
   });
 
   res.json(rules);
-});
+}));

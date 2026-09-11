@@ -4,6 +4,7 @@ import { db } from '../../db/client.js';
 import { monthlyPayments, commissions, commissionRules, students, users, roles } from '../../db/schema.js';
 import { authenticate, requireRole } from '../middleware/auth.js';
 import { logAudit } from '../middleware/audit.js';
+import { asyncHandler } from '../middleware/asyncHandler.js';
 import { and, desc, eq } from 'drizzle-orm';
 
 export const paymentsRouter = Router({ mergeParams: true });
@@ -20,7 +21,7 @@ const PaymentSchema = z.object({
 paymentsRouter.post(
   '/',
   requireRole('ADMIN', 'DIRECTOR', 'MANAGER', 'SUPER_ADMIN'),
-  async (req, res) => {
+  asyncHandler(async (req, res) => {
     const studentId = Number(req.params['studentId']);
     const parsed = PaymentSchema.safeParse(req.body);
     if (!parsed.success) { res.status(400).json({ error: parsed.error.flatten() }); return; }
@@ -121,13 +122,13 @@ paymentsRouter.post(
     });
 
     res.status(201).json(payment);
-  },
+  }),
 );
 
 paymentsRouter.get(
   '/',
   requireRole('ADMIN', 'DIRECTOR', 'TEACHER', 'MANAGER', 'SUPER_ADMIN'),
-  async (req, res) => {
+  asyncHandler(async (req, res) => {
     const studentId = Number(req.params['studentId']);
     const rows = await db
       .select()
@@ -135,5 +136,5 @@ paymentsRouter.get(
       .where(eq(monthlyPayments.studentId, studentId))
       .orderBy(desc(monthlyPayments.paidAt));
     res.json(rows);
-  },
+  }),
 );

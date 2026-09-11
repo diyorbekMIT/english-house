@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { normalizePhone } from '../routes/students.js';
+import { computeBalance } from '../lib/balance.js';
 
 describe('Phone Normalization', () => {
   it('normalizes 9-digit Uzbek phone number', () => {
@@ -38,5 +39,50 @@ describe('Commission Calculation Math', () => {
   it('returns 0 when amount or rate is zero', () => {
     expect(calculateCommission(0, 1000)).toBe(0);
     expect(calculateCommission(500000, 0)).toBe(0);
+  });
+});
+
+describe('Balance Calculation', () => {
+  it('sums commissions and completed payouts into a single balance', () => {
+    const balance = computeBalance(
+      [
+        { amountUzs: 100_000, status: 'PAID' },
+        { amountUzs: 50_000, status: 'PENDING' },
+      ],
+      [
+        { amountUzs: 10_000_000, type: 'INITIAL_BONUS', status: 'COMPLETED' },
+      ],
+    );
+
+    expect(balance.commissionTotalUzs).toBe(150_000);
+    expect(balance.commissionPaidUzs).toBe(100_000);
+    expect(balance.commissionPendingUzs).toBe(50_000);
+    expect(balance.payoutsNetUzs).toBe(10_000_000);
+    expect(balance.balanceUzs).toBe(10_150_000);
+  });
+
+  it('excludes PENDING and CANCELLED payouts from the balance', () => {
+    const balance = computeBalance(
+      [],
+      [
+        { amountUzs: 5_000_000, type: 'CREDIT', status: 'PENDING' },
+        { amountUzs: 1_000_000, type: 'CREDIT', status: 'CANCELLED' },
+      ],
+    );
+
+    expect(balance.payoutsNetUzs).toBe(0);
+    expect(balance.balanceUzs).toBe(0);
+  });
+
+  it('subtracts completed DEBIT payouts from the balance', () => {
+    const balance = computeBalance(
+      [{ amountUzs: 10_000_000, status: 'PAID' }],
+      [
+        { amountUzs: 3_000_000, type: 'DEBIT', status: 'COMPLETED' },
+      ],
+    );
+
+    expect(balance.payoutsNetUzs).toBe(-3_000_000);
+    expect(balance.balanceUzs).toBe(7_000_000);
   });
 });

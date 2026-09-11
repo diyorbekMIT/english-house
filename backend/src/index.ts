@@ -7,6 +7,7 @@ import { studentsRouter } from './routes/students.js';
 import { paymentsRouter } from './routes/payments.js';
 import { commissionsRouter } from './routes/commissions.js';
 import { commissionRulesRouter } from './routes/commission-rules.js';
+import { payoutsRouter } from './routes/payouts.js';
 import { auditLogsRouter } from './routes/audit-logs.js';
 import { schoolsRouter } from './routes/schools.js';
 import { analyticsRouter } from './routes/analytics.js';
@@ -25,10 +26,23 @@ app.use('/students', studentsRouter);
 app.use('/students/:studentId/monthly-payments', paymentsRouter);
 app.use('/commissions', commissionsRouter);
 app.use('/commission-rules', commissionRulesRouter);
+app.use('/payouts', payoutsRouter);
 app.use('/audit-logs', auditLogsRouter);
 app.use('/analytics', analyticsRouter);
 
 app.get('/health', (_req, res) => res.json({ status: 'ok' }));
+
+// Fallback error handler: routes here don't wrap their async logic in try/catch,
+// so without this a single failing request (e.g. a DB error) crashes the whole
+// process instead of just returning a 500 to that request.
+app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  console.error('Unhandled route error:', err);
+  if (!res.headersSent) res.status(500).json({ error: 'Internal server error' });
+});
+
+process.on('unhandledRejection', (reason) => {
+  console.error('Unhandled promise rejection:', reason);
+});
 
 app.listen(PORT, () => {
   console.log(`Referral API running on http://localhost:${PORT}`);

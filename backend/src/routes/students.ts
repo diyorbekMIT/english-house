@@ -4,6 +4,7 @@ import { db } from '../../db/client.js';
 import { students, schools, users, roles } from '../../db/schema.js';
 import { authenticate, requireRole } from '../middleware/auth.js';
 import { logAudit } from '../middleware/audit.js';
+import { asyncHandler } from '../middleware/asyncHandler.js';
 import { and, or, desc, eq, like, SQL } from 'drizzle-orm';
 
 export const studentsRouter = Router();
@@ -23,7 +24,7 @@ export const normalizePhone = (phone: string): string => {
 
 const CreateStudentSchema = z.object({
   fullName: z.string().min(1),
-  phone: z.string().min(5),
+  phone: z.string().min(4),
   secondaryPhone: z.string().optional(),
   schoolId: z.number().int().optional(),
   directorId: z.number().int().optional(),
@@ -37,7 +38,7 @@ const CreateStudentSchema = z.object({
 studentsRouter.post(
   '/',
   requireRole('TEACHER', 'ADMIN', 'DIRECTOR', 'MANAGER', 'SUPER_ADMIN'),
-  async (req, res) => {
+  asyncHandler(async (req, res) => {
     const parsed = CreateStudentSchema.safeParse(req.body);
     if (!parsed.success) { res.status(400).json({ error: parsed.error.flatten() }); return; }
 
@@ -165,13 +166,13 @@ studentsRouter.post(
       }
       throw err;
     }
-  },
+  }),
 );
 
 studentsRouter.get(
   '/',
   requireRole('TEACHER', 'ADMIN', 'DIRECTOR', 'MANAGER', 'SUPER_ADMIN'),
-  async (req, res) => {
+  asyncHandler(async (req, res) => {
     const user = req.user!;
     const { callStatus, studyStatus, schoolId, teacherId } = req.query;
 
@@ -222,10 +223,10 @@ studentsRouter.get(
       .orderBy(desc(students.createdAt));
 
     res.json(rows);
-  },
+  }),
 );
 
-studentsRouter.get('/:id', requireRole('TEACHER', 'ADMIN', 'DIRECTOR', 'MANAGER', 'SUPER_ADMIN'), async (req, res) => {
+studentsRouter.get('/:id', requireRole('TEACHER', 'ADMIN', 'DIRECTOR', 'MANAGER', 'SUPER_ADMIN'), asyncHandler(async (req, res) => {
   const id = Number(req.params['id']);
   const [student] = await db
     .select({
@@ -254,12 +255,12 @@ studentsRouter.get('/:id', requireRole('TEACHER', 'ADMIN', 'DIRECTOR', 'MANAGER'
 
   if (!student) { res.status(404).json({ error: 'Not found' }); return; }
   res.json(student);
-});
+}));
 
 studentsRouter.patch(
   '/:id/call-status',
   requireRole('ADMIN', 'DIRECTOR', 'MANAGER', 'SUPER_ADMIN'),
-  async (req, res) => {
+  asyncHandler(async (req, res) => {
     const id = Number(req.params['id']);
     const schema = z.object({
       callStatus: z.enum(['WAITING', 'ACCEPTED', 'REJECTED']),
@@ -301,13 +302,13 @@ studentsRouter.patch(
       },
     });
     res.json(student);
-  },
+  }),
 );
 
 studentsRouter.patch(
   '/:id/study-status',
   requireRole('ADMIN', 'DIRECTOR', 'TEACHER', 'MANAGER', 'SUPER_ADMIN'),
-  async (req, res) => {
+  asyncHandler(async (req, res) => {
     const id = Number(req.params['id']);
     const schema = z.object({ studyStatus: z.enum(['STUDYING', 'STOPPED']) });
     const parsed = schema.safeParse(req.body);
@@ -328,5 +329,5 @@ studentsRouter.patch(
       description: `Student '${student.fullName}' study_status changed to ${parsed.data.studyStatus}`,
     });
     res.json(student);
-  },
+  }),
 );

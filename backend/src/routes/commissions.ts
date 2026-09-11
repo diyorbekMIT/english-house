@@ -4,6 +4,7 @@ import { db } from '../../db/client.js';
 import { commissions } from '../../db/schema.js';
 import { authenticate, requireRole } from '../middleware/auth.js';
 import { logAudit } from '../middleware/audit.js';
+import { asyncHandler } from '../middleware/asyncHandler.js';
 import { and, desc, eq } from 'drizzle-orm';
 
 export const commissionsRouter = Router();
@@ -12,7 +13,7 @@ commissionsRouter.use(authenticate);
 commissionsRouter.get(
   '/',
   requireRole('SUPER_ADMIN', 'MANAGER', 'ADMIN', 'DIRECTOR', 'TEACHER'),
-  async (req, res) => {
+  asyncHandler(async (req, res) => {
     const user = req.user!;
     const { userId: userIdFilter, status } = req.query;
 
@@ -38,14 +39,14 @@ commissionsRouter.get(
       .orderBy(desc(commissions.createdAt));
 
     res.json(rows);
-  },
+  }),
 );
 
 // PATCH /commissions/:id/mark-paid
 commissionsRouter.patch(
   '/:id/mark-paid',
   requireRole('ADMIN', 'SUPER_ADMIN', 'MANAGER'),
-  async (req, res) => {
+  asyncHandler(async (req, res) => {
     const id = Number(req.params['id']);
 
     const [commission] = await db
@@ -64,14 +65,14 @@ commissionsRouter.patch(
       description: `Commission ${id} marked as PAID`,
     });
     res.json(commission);
-  },
+  }),
 );
 
 // PATCH /commissions/:id/status — SuperAdmin can set any status
 commissionsRouter.patch(
   '/:id/status',
   requireRole('SUPER_ADMIN'),
-  async (req, res) => {
+  asyncHandler(async (req, res) => {
     const id = Number(req.params['id']);
     const schema = z.object({ status: z.enum(['PENDING', 'READY_TO_PAY', 'PAID']) });
     const parsed = schema.safeParse(req.body);
@@ -97,5 +98,5 @@ commissionsRouter.patch(
       description: `Commission ${id} status set to ${parsed.data.status}`,
     });
     res.json(commission);
-  },
+  }),
 );

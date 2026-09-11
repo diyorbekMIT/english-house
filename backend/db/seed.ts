@@ -53,8 +53,8 @@ const run = async (): Promise<void> => {
   const existingRules = await db.select().from(commissionRules);
   if (existingRules.length === 0) {
     await db.insert(commissionRules).values({
-      teacherSignupBonusUzs: 50000,
-      directorSignupBonusUzs: 100000,
+      teacherSignupBonusUzs: 5_000_000,
+      directorSignupBonusUzs: 10_000_000,
       teacherMonthlyPercent: 1000,   // 10.00%
       directorMonthlyPercent: 500,   // 5.00%
       isActive: true,

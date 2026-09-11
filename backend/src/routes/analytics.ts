@@ -10,13 +10,15 @@ import {
   commissions,
 } from '../../db/schema.js';
 import { authenticate, requireRole } from '../middleware/auth.js';
+import { getUserBalance } from '../lib/balance.js';
+import { asyncHandler } from '../middleware/asyncHandler.js';
 import { desc, eq, and } from 'drizzle-orm';
 
 export const analyticsRouter = Router();
 analyticsRouter.use(authenticate);
 
 // CEO / SuperAdmin analytics endpoint with date range filter support
-analyticsRouter.get('/ceo-summary', requireRole('SUPER_ADMIN'), async (req, res) => {
+analyticsRouter.get('/ceo-summary', requireRole('SUPER_ADMIN'), asyncHandler(async (req, res) => {
   const { startDate, endDate } = req.query;
 
   // 1. All data from DB
@@ -337,10 +339,10 @@ analyticsRouter.get('/ceo-summary', requireRole('SUPER_ADMIN'), async (req, res)
     // Backwards compatibility alias
     leads: overall,
   });
-});
+}));
 
 // ── Director Analytics Summary ────────────────────────────────────────────────
-analyticsRouter.get('/director-summary', requireRole('DIRECTOR'), async (req, res) => {
+analyticsRouter.get('/director-summary', requireRole('DIRECTOR'), asyncHandler(async (req, res) => {
   const user = req.user!;
 
   // 1. Get director's school
@@ -408,6 +410,8 @@ analyticsRouter.get('/director-summary', requireRole('DIRECTOR'), async (req, re
     .reduce((s, c) => s + c.amountUzs, 0);
   const pendingCommissionUzs = totalCommissionUzs - paidCommissionUzs;
 
+  const { payoutsNetUzs, balanceUzs } = await getUserBalance(db, user.userId);
+
   // 5. Aggregate metrics
   const totalStudents = schoolStudents.length;
   const studyingStudents = schoolStudents.filter((s) => s.studyStatus === 'STUDYING').length;
@@ -429,6 +433,8 @@ analyticsRouter.get('/director-summary', requireRole('DIRECTOR'), async (req, re
     totalCommissionUzs,
     paidCommissionUzs,
     pendingCommissionUzs,
+    payoutsNetUzs,
+    balanceUzs,
   };
 
   // 6. 14-day daily student registrations in this school (starts from zero every day)
@@ -475,10 +481,10 @@ analyticsRouter.get('/director-summary', requireRole('DIRECTOR'), async (req, re
     teachersPerformance,
     students: schoolStudents,
   });
-});
+}));
 
 // ── Teacher Analytics Summary ─────────────────────────────────────────────────
-analyticsRouter.get('/teacher-summary', requireRole('TEACHER'), async (req, res) => {
+analyticsRouter.get('/teacher-summary', requireRole('TEACHER'), asyncHandler(async (req, res) => {
   const user = req.user!;
 
   // 1. Get teacher's user & school info
@@ -522,6 +528,8 @@ analyticsRouter.get('/teacher-summary', requireRole('TEACHER'), async (req, res)
     .reduce((s, c) => s + c.amountUzs, 0);
   const pendingCommissionUzs = totalCommissionUzs - paidCommissionUzs;
 
+  const { payoutsNetUzs, balanceUzs } = await getUserBalance(db, user.userId);
+
   // 4. Metrics
   const totalStudents = myStudents.length;
   const studyingStudents = myStudents.filter((s) => s.studyStatus === 'STUDYING').length;
@@ -543,6 +551,8 @@ analyticsRouter.get('/teacher-summary', requireRole('TEACHER'), async (req, res)
     totalCommissionUzs,
     paidCommissionUzs,
     pendingCommissionUzs,
+    payoutsNetUzs,
+    balanceUzs,
   };
 
   // 5. 14-day daily student registrations by this teacher (starts from zero every day)
@@ -570,4 +580,4 @@ analyticsRouter.get('/teacher-summary', requireRole('TEACHER'), async (req, res)
     dailyTrends,
     students: myStudents,
   });
-});
+}));
