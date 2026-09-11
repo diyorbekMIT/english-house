@@ -83,9 +83,11 @@ paymentsRouter.post(
       .returning();
 
     // The first payment is what actually activates a student — this is what hands
-    // them off from Sales Manager's lead list to Admin's ongoing-student list.
+    // them off from Sales Manager's lead list to Admin's ongoing-student list. Call
+    // status is bumped to MADE_PAYMENT alongside it, so the lead pipeline reflects
+    // reality without the Sales Manager having to update it by hand.
     if (isFirstPayment) {
-      await db.update(students).set({ studyStatus: 'ACTIVE', updatedAt: new Date() }).where(eq(students.id, studentId));
+      await db.update(students).set({ studyStatus: 'ACTIVE', callStatus: 'MADE_PAYMENT', updatedAt: new Date() }).where(eq(students.id, studentId));
     }
 
     // Compute and insert commissions.
