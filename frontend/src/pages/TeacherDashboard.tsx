@@ -13,6 +13,7 @@ import {
 import CommissionCreditCard from '../components/CommissionCreditCard';
 import PayoutHistoryList from '../components/PayoutHistoryList';
 import { useAuth } from '../contexts/AuthContext';
+import { formatUzs } from '../lib/format';
 import { getErrorMessage } from '../lib/errors';
 import type { Payout } from './superadmin/types';
 
@@ -468,6 +469,12 @@ const TeacherStudentsPage = () => {
 };
 
 // ── 3. NEW STUDENT FORM PAGE ───────────────────────────────────────────────────
+interface CourseOption {
+  id: number;
+  name: string;
+  isActive: boolean;
+}
+
 const NewStudentPage = () => {
   const navigate = useNavigate();
   const qc = useQueryClient();
@@ -476,18 +483,25 @@ const NewStudentPage = () => {
     phone: '',
     secondaryPhone: '',
     grade: '',
-    courseInterest: '',
+    courseId: '',
     parentName: '',
   });
   const [msg, setMsg] = useState('');
   const { confirm, showToast } = useFeedback();
+
+  const { data: courses = [] } = useQuery<CourseOption[]>({
+    queryKey: ['courses'],
+    queryFn: () => api.get('/courses').then((r) => r.data),
+  });
+  const activeCourses = courses.filter((c) => c.isActive);
 
   const mutation = useMutation({
     mutationFn: (body: {
       fullName: string;
       phone: string;
       secondaryPhone?: string;
-      meta?: { grade?: string; course_interest?: string; parent_name?: string };
+      courseId?: number;
+      meta?: { grade?: string; parent_name?: string };
     }) => api.post('/students', body),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['students'] });
@@ -512,6 +526,7 @@ const NewStudentPage = () => {
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
+    const selectedCourse = activeCourses.find((c) => c.id === Number(form.courseId));
     const confirmed = await confirm({
       title: "O'quvchini ro'yxatdan o'tkazishni tasdiqlaysizmi?",
       message: "Kiritilgan ma'lumotlar ta'lim markazi ma'muriyatiga yuboriladi va qo'ng'iroqlar navbatiga qo'shiladi.",
@@ -519,7 +534,8 @@ const NewStudentPage = () => {
         { label: "O'quvchi F.I.SH", value: form.fullName },
         { label: "Telefon raqam", value: form.phone },
         { label: "Qo'shimcha telefon", value: form.secondaryPhone || "Ko'rsatilmagan" },
-        { label: "Qiziqqan kursi / Sinf", value: `${form.grade || ''} ${form.courseInterest || ''}`.trim() || 'Umumiy kurs' },
+        { label: "Sinfi / Yoshi", value: form.grade || 'Kiritilmagan' },
+        { label: "Kursi", value: selectedCourse?.name ?? 'Tanlanmagan' },
         { label: "Ota-onasi", value: form.parentName || 'Kiritilmagan' },
       ],
       confirmText: "Ha, ro'yxatdan o'tkazish",
@@ -530,9 +546,9 @@ const NewStudentPage = () => {
       fullName: form.fullName,
       phone: form.phone,
       secondaryPhone: form.secondaryPhone || undefined,
+      courseId: form.courseId ? Number(form.courseId) : undefined,
       meta: {
         grade: form.grade || undefined,
-        course_interest: form.courseInterest || undefined,
         parent_name: form.parentName || undefined,
       },
     });
@@ -593,14 +609,18 @@ const NewStudentPage = () => {
               />
             </div>
             <div>
-              <label className="label">Qiziqqan kursi</label>
-              <input
-                type="text"
+              <label className="label">Kursi</label>
+              <select
                 className="input"
-                placeholder="IELTS, General English"
-                value={form.courseInterest}
-                onChange={(e) => setForm({ ...form, courseInterest: e.target.value })}
-              />
+                value={form.courseId}
+                onChange={(e) => setForm({ ...form, courseId: e.target.value })}
+                required
+              >
+                <option value="">-- Kursni tanlang --</option>
+                {activeCourses.map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
             </div>
             <div>
               <label className="label">Ota-onasi ismi</label>
@@ -662,11 +682,11 @@ const TeacherCommissionsPage = () => {
   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 flex-1 w-full">
     <div className="stat-card">
       <p className="text-xs font-semibold text-slate-500 uppercase">Kutilayotgan mukofot</p>
-      <p className="text-2xl font-bold text-amber-600">{pending.toLocaleString()} UZS</p>
+      <p className="text-2xl font-bold text-amber-600">{formatUzs(pending)} UZS</p>
     </div>
     <div className="stat-card">
       <p className="text-xs font-semibold text-slate-500 uppercase">To'langan mukofot</p>
-      <p className="text-2xl font-bold text-emerald-600">{paid.toLocaleString()} UZS</p>
+      <p className="text-2xl font-bold text-emerald-600">{formatUzs(paid)} UZS</p>
     </div>
   </div>
 </div>

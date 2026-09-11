@@ -5,8 +5,8 @@ import { useFeedback } from '../../contexts/FeedbackContext';
 import StatusBadge from '../../components/StatusBadge';
 import { getErrorMessage } from '../../lib/errors';
 import type { Payout, PayoutBalanceRow } from './types';
-
-const formatUzs = (n: number) => n.toLocaleString('uz-UZ', { maximumFractionDigits: 0 });
+import { formatUzs } from '../../lib/format';
+import { AmountInput } from '../../components/AmountInput';
 
 const TYPE_LABELS: Record<Payout['type'], string> = {
   INITIAL_BONUS: "Boshlang'ich bonus",
@@ -206,12 +206,10 @@ export const PayoutsPage = () => {
           </div>
           <div>
             <label className="label">Miqdori (UZS)</label>
-            <input
-              type="number"
+            <AmountInput
               className="input"
-              min={1}
               value={form.amountUzs}
-              onChange={(e) => setForm({ ...form, amountUzs: e.target.value })}
+              onChange={(raw) => setForm({ ...form, amountUzs: raw })}
               required
             />
           </div>

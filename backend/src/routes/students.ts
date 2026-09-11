@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { db } from '../../db/client.js';
-import { students, schools, users, roles, monthlyPayments } from '../../db/schema.js';
+import { students, schools, users, roles, monthlyPayments, courses } from '../../db/schema.js';
 import { authenticate, requireRole } from '../middleware/auth.js';
 import { logAudit } from '../middleware/audit.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
@@ -29,6 +29,7 @@ const CreateStudentSchema = z.object({
   schoolId: z.number().int().optional(),
   directorId: z.number().int().optional(),
   teacherId: z.number().int().optional(),
+  courseId: z.number().int().optional(),
   callNote: z.string().max(500).optional(),
   meta: z.record(z.unknown()).optional(),
 });
@@ -140,6 +141,7 @@ studentsRouter.post(
           schoolId,
           directorId,
           teacherId,
+          courseId: parsed.data.courseId ?? null,
           // callStatus/studyStatus intentionally omitted: every new student
           // starts at the WAITING/NOACTIVE column defaults, no exceptions.
           callNote: parsed.data.callNote ?? null,
@@ -233,10 +235,13 @@ studentsRouter.get(
         schoolNumber: schools.schoolNumber,
         teacherName: users.fullName,
         teacherPhone: users.phone,
+        courseId: students.courseId,
+        courseName: courses.name,
       })
       .from(students)
       .leftJoin(schools, eq(students.schoolId, schools.id))
       .leftJoin(users, eq(students.teacherId, users.id))
+      .leftJoin(courses, eq(students.courseId, courses.id))
       .where(conditions.length ? and(...conditions) : undefined)
       .orderBy(desc(students.createdAt));
 
@@ -265,10 +270,13 @@ studentsRouter.get('/:id', requireRole('TEACHER', 'SALES_MANAGER', 'ADMIN', 'DIR
       schoolNumber: schools.schoolNumber,
       teacherName: users.fullName,
       teacherPhone: users.phone,
+      courseId: students.courseId,
+      courseName: courses.name,
     })
     .from(students)
     .leftJoin(schools, eq(students.schoolId, schools.id))
     .leftJoin(users, eq(students.teacherId, users.id))
+    .leftJoin(courses, eq(students.courseId, courses.id))
     .where(eq(students.id, id));
 
   if (!student) { res.status(404).json({ error: 'Not found' }); return; }

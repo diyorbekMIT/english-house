@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
+import { formatUzs } from '../lib/format';
 
 interface School {
   id: number;
@@ -41,8 +42,6 @@ const PAYMENT_METHOD_LABELS: Record<string, string> = {
   CARD: 'Karta orqali',
   TRANSFER: "O'tkazma",
 };
-
-const formatUzs = (n: number) => n.toLocaleString('uz-UZ', { maximumFractionDigits: 0 });
 
 const ROLE_BASE_PATH: Record<string, string> = {
   SUPER_ADMIN: '/superadmin',

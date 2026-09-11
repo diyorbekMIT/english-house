@@ -102,6 +102,17 @@ export const users = pgTable(
   }),
 );
 
+// Course price is CEO-only, everywhere: never returned in API responses to any
+// other role. Name is fine for everyone (teachers need it to pick a course).
+export const courses = pgTable('courses', {
+  id: bigserial('id', { mode: 'number' }).primaryKey(),
+  name: text('name').notNull(),
+  priceUzs: integer('price_uzs').notNull(),
+  isActive: boolean('is_active').notNull().default(true),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
 export const students = pgTable(
   'students',
   {
@@ -112,6 +123,7 @@ export const students = pgTable(
     schoolId: integer('school_id').references(() => schools.id),
     directorId: integer('director_id').references(() => users.id),
     teacherId: integer('teacher_id').references(() => users.id),
+    courseId: integer('course_id').references(() => courses.id),
     callStatus: callStatusEnum('call_status').notNull().default('WAITING'),
     studyStatus: studyStatusEnum('study_status').notNull().default('NOACTIVE'),
     callNote: text('call_note'),              // Admin's note: rejection reason, waiting reason, etc.
@@ -124,6 +136,7 @@ export const students = pgTable(
     teacherIdIdx: index('students_teacher_id_idx').on(t.teacherId),
     directorIdIdx: index('students_director_id_idx').on(t.directorId),
     schoolIdIdx: index('students_school_id_idx').on(t.schoolId),
+    courseIdIdx: index('students_course_id_idx').on(t.courseId),
     callStatusIdx: index('students_call_status_idx').on(t.callStatus),
     studyStatusIdx: index('students_study_status_idx').on(t.studyStatus),
   }),
@@ -162,6 +175,16 @@ export const commissionRules = pgTable('commission_rules', {
   // Stored as integer basis points: 1000 = 10.00%
   teacherMonthlyPercent: integer('teacher_monthly_percent').notNull().default(0),
   directorMonthlyPercent: integer('director_monthly_percent').notNull().default(0),
+  // Bigger rate applied only on a student's first payment; teacherMonthlyPercent/
+  // directorMonthlyPercent apply to every payment after that, only while the
+  // student stays ACTIVE.
+  teacherFirstPaymentPercent: integer('teacher_first_payment_percent').notNull().default(0),
+  directorFirstPaymentPercent: integer('director_first_payment_percent').notNull().default(0),
+  // CEO-set base price bonuses are calculated against (both first-payment and
+  // monthly), instead of the actual amount a student paid — keeps commissions
+  // predictable regardless of discounts or payment amount variance. 0 means
+  // "not set yet", in which case the actual amount paid is used as a fallback.
+  specialPriceUzs: integer('special_price_uzs').notNull().default(0),
   isActive: boolean('is_active').notNull().default(true),
   validFrom: timestamp('valid_from', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { formatUzs } from '../lib/format';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 export interface DailyTrendItem {
@@ -94,7 +95,7 @@ export const DailyActivityChart: React.FC<DailyActivityChartProps> = ({ data, pe
               <span>Qo'ng'iroqlar: <strong className="text-emerald-300">{hoveredDay.callsMade} ta</strong></span>
               <span>To'lovlar: <strong className="text-teal-300">{hoveredDay.paidCount} ta</strong></span>
               {hoveredDay.revenueUzs > 0 && (
-                <span>Tushum: <strong className="text-yellow-300">{hoveredDay.revenueUzs.toLocaleString()} UZS</strong></span>
+                <span>Tushum: <strong className="text-yellow-300">{formatUzs(hoveredDay.revenueUzs)} UZS</strong></span>
               )}
             </div>
           </div>
@@ -210,7 +211,7 @@ export const DailyActivityChart: React.FC<DailyActivityChartProps> = ({ data, pe
         </div>
         <div className="bg-amber-50/50 p-2.5 rounded-lg">
           <span className="text-amber-800 text-[11px] block">Davrdagi jami tushum:</span>
-          <span className="text-base font-bold text-amber-900">{totalPeriodRev.toLocaleString()} UZS</span>
+          <span className="text-base font-bold text-amber-900">{formatUzs(totalPeriodRev)} UZS</span>
         </div>
       </div>
     </div>

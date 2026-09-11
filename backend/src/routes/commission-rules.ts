@@ -25,6 +25,9 @@ const RulesSchema = z.object({
   directorSignupBonusUzs: z.number().int().min(0),
   teacherMonthlyPercent: z.number().int().min(0).max(10000),
   directorMonthlyPercent: z.number().int().min(0).max(10000),
+  teacherFirstPaymentPercent: z.number().int().min(0).max(10000),
+  directorFirstPaymentPercent: z.number().int().min(0).max(10000),
+  specialPriceUzs: z.number().int().min(0),
   validFrom: z.string().datetime().optional(),
 });
 

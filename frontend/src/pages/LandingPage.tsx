@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { formatUzs } from '../lib/format';
 
 const ROLE_PATHS: Record<string, string> = {
   SUPER_ADMIN: '/superadmin',
@@ -472,7 +473,7 @@ export const LandingPage: React.FC = () => {
                     <span className="text-xs text-slate-500">O'quvchi markazga qabul qilinganda</span>
                   </div>
                   <span className="text-lg sm:text-2xl font-black text-[#1E3A8A] font-mono">
-                    +{totalSignupBonus.toLocaleString()} UZS
+                    +{formatUzs(totalSignupBonus)} UZS
                   </span>
                 </div>
 
@@ -486,7 +487,7 @@ export const LandingPage: React.FC = () => {
                     Har oylik kafolatlangan passiv daromad:
                   </span>
                   <p className="text-3xl sm:text-5xl font-black text-emerald-600 font-mono tracking-tight my-1.5">
-                    +{monthlyRecurringCommission.toLocaleString()} <span className="text-base sm:text-xl font-bold">UZS / oy</span>
+                    +{formatUzs(monthlyRecurringCommission)} <span className="text-base sm:text-xl font-bold">UZS / oy</span>
                   </p>
                   <span className="text-xs text-emerald-700 font-medium block">
                     O'quvchilar markazda o'qiyotgan har bir oy uchun avtomatik to'lanadi
@@ -499,7 +500,7 @@ export const LandingPage: React.FC = () => {
                     O'quv yili (10 oy) davomida jami sof daromad:
                   </span>
                   <p className="text-3xl sm:text-5xl font-black mt-1 font-mono tracking-tight text-amber-300">
-                    {annualTotalIncome.toLocaleString()} <span className="text-lg sm:text-2xl font-bold text-white">UZS</span>
+                    {formatUzs(annualTotalIncome)} <span className="text-lg sm:text-2xl font-bold text-white">UZS</span>
                   </p>
                   <span className="text-xs text-blue-100 block mt-1.5">
                     Asosiy darslaringizdan ajralmagan holda qo'shimcha kafolatlangan sof foyda

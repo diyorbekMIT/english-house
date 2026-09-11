@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import StatusBadge from '../components/StatusBadge';
+import { formatUzs } from '../lib/format';
 
 interface StudentDetail {
   id: number;
@@ -34,8 +35,6 @@ const PAYMENT_METHOD_LABELS: Record<string, string> = {
   CARD: 'Karta orqali',
   TRANSFER: "O'tkazma",
 };
-
-const formatUzs = (n: number) => n.toLocaleString('uz-UZ', { maximumFractionDigits: 0 });
 
 export const StudentPaymentHistoryPage = () => {
   const { studentId } = useParams();

@@ -18,6 +18,20 @@ const PaymentSchema = z.object({
   meta: z.record(z.unknown()).optional(),
 });
 
+// The first payment always earns a bonus (it's the activation trigger). Every
+// payment after that only earns the ongoing bonus while the student is ACTIVE —
+// once NOACTIVE, that recurring stream stops.
+export const isEligibleForBonus = (isFirstPayment: boolean, studyStatus: string): boolean =>
+  isFirstPayment || studyStatus === 'ACTIVE';
+
+// Bonuses are calculated off the CEO-set special price (commissionRules.specialPriceUzs),
+// not the actual amount paid — falls back to the real payment amount when the
+// CEO hasn't set one yet (0/unset).
+export const selectCommissionBaseUzs = (
+  specialPriceUzs: number | null | undefined,
+  amountUzs: number,
+): number => (specialPriceUzs && specialPriceUzs > 0 ? specialPriceUzs : amountUzs);
+
 paymentsRouter.post(
   '/',
   requireRole('SALES_MANAGER', 'ADMIN', 'DIRECTOR', 'MANAGER', 'SUPER_ADMIN'),
@@ -74,21 +88,25 @@ paymentsRouter.post(
       await db.update(students).set({ studyStatus: 'ACTIVE', updatedAt: new Date() }).where(eq(students.id, studentId));
     }
 
-    // Compute and insert commissions
-    if (rules && payment) {
+    // Compute and insert commissions.
+    if (rules && payment && isEligibleForBonus(isFirstPayment, student.studyStatus)) {
+      const baseUzs = selectCommissionBaseUzs(rules.specialPriceUzs, parsed.data.amountUzs);
+
+      const commissionType = isFirstPayment ? 'SIGNUP_BONUS' : 'MONTHLY_COMMISSION';
+      const teacherPercent = isFirstPayment ? rules.teacherFirstPaymentPercent : rules.teacherMonthlyPercent;
+      const directorPercent = isFirstPayment ? rules.directorFirstPaymentPercent : rules.directorMonthlyPercent;
+
       const commissionRows: (typeof commissions.$inferInsert)[] = [];
 
       if (student.teacherId) {
-        const teacherAmount = Math.floor(
-          (parsed.data.amountUzs * rules.teacherMonthlyPercent) / 10000,
-        );
+        const teacherAmount = Math.floor((baseUzs * teacherPercent) / 10000);
         if (teacherAmount > 0) {
           commissionRows.push({
             userId: student.teacherId,
             studentId,
             monthlyPaymentId: payment.id,
             amountUzs: teacherAmount,
-            type: 'MONTHLY_COMMISSION',
+            type: commissionType,
             status: 'PENDING',
           });
         }
@@ -115,16 +133,14 @@ paymentsRouter.post(
       }
 
       if (directorRecipientId) {
-        const directorAmount = Math.floor(
-          (parsed.data.amountUzs * rules.directorMonthlyPercent) / 10000,
-        );
+        const directorAmount = Math.floor((baseUzs * directorPercent) / 10000);
         if (directorAmount > 0) {
           commissionRows.push({
             userId: directorRecipientId,
             studentId,
             monthlyPaymentId: payment.id,
             amountUzs: directorAmount,
-            type: 'MONTHLY_COMMISSION',
+            type: commissionType,
             status: 'PENDING',
           });
         }

@@ -5,6 +5,7 @@ import { api } from '../../lib/api';
 import { useFeedback } from '../../contexts/FeedbackContext';
 import StatusBadge from '../../components/StatusBadge';
 import type { CeoSummary } from './types';
+import { formatUzs } from '../../lib/format';
 
 export const SchoolsTeachersDashboard = () => {
   const qc = useQueryClient();
@@ -170,7 +171,7 @@ export const SchoolsTeachersDashboard = () => {
                       <td className="text-center font-semibold text-slate-700">{s.teacherCount} ta</td>
                       <td className="text-center font-bold text-slate-900">{s.studentCount} ta</td>
                       <td className="text-center font-bold text-emerald-600">{s.studyingCount} ta</td>
-                      <td className="font-bold text-teal-800">{s.revenueUzs.toLocaleString()} UZS</td>
+                      <td className="font-bold text-teal-800">{formatUzs(s.revenueUzs)} UZS</td>
                       <td><StatusBadge value={s.isActive ? 'true' : 'false'} type="active" /></td>
                       <td>
                         <Link
@@ -239,8 +240,8 @@ export const SchoolsTeachersDashboard = () => {
                     <td className="text-center font-bold text-slate-800">{t.totalStudents} ta</td>
                     <td className="text-center font-bold text-emerald-600">{t.studyingStudents} ta</td>
                     <td className="text-center font-bold text-blue-800">{t.paidStudents} ta</td>
-                    <td className="font-bold text-slate-900">{t.totalCommissionUzs.toLocaleString()} UZS</td>
-                    <td className="font-bold text-amber-600">{t.pendingCommissionUzs.toLocaleString()} UZS</td>
+                    <td className="font-bold text-slate-900">{formatUzs(t.totalCommissionUzs)} UZS</td>
+                    <td className="font-bold text-amber-600">{formatUzs(t.pendingCommissionUzs)} UZS</td>
                     <td>
                       <Link
                         to={t.schoolId ? `/superadmin/schools/${t.schoolId}/teachers/${t.id}` : `/superadmin/teachers/${t.id}/students`}

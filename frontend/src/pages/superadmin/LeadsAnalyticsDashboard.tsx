@@ -5,6 +5,7 @@ import StatusBadge from '../../components/StatusBadge';
 import AuditDescriptionHighlighter from '../../components/AuditDescriptionHighlighter';
 import { DailyActivityChart, UnifiedAdminTable } from '../../components/Charts';
 import { type CeoSummary, formatDateInput } from './types';
+import { formatUzs } from '../../lib/format';
 
 export const LeadsAnalyticsDashboard = () => {
   const now = new Date();
@@ -109,7 +110,7 @@ export const LeadsAnalyticsDashboard = () => {
           <div className="p-3 bg-white rounded-lg border border-slate-200 shadow-xs">
             <p className="text-xs font-semibold text-teal-700 uppercase">Jami Umumiy Tushum</p>
             <p className="text-xl font-bold text-teal-800 mt-1">
-              {overall.totalRevenueUzs.toLocaleString()} <span className="text-xs">UZS</span>
+              {formatUzs(overall.totalRevenueUzs)} <span className="text-xs">UZS</span>
             </p>
             <span className="text-[11px] text-slate-400">Markazga kelgan mablag'</span>
           </div>
@@ -221,7 +222,7 @@ export const LeadsAnalyticsDashboard = () => {
           <div className="stat-card">
             <p className="text-xs font-semibold text-amber-700 uppercase">Davrdagi Tushum</p>
             <p className="text-xl font-bold text-amber-800 mt-0.5">
-              {period.revenueUzs.toLocaleString()} <span className="text-xs">UZS</span>
+              {formatUzs(period.revenueUzs)} <span className="text-xs">UZS</span>
             </p>
             <span className="text-[11px] text-slate-400">Tanlangan sanada qabul qilingan</span>
           </div>

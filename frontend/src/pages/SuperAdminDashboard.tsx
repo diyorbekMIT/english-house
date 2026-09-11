@@ -11,6 +11,7 @@ import { DirectorsPage } from './superadmin/DirectorsPage';
 import { AdminsPage } from './superadmin/AdminsPage';
 import { AdminUsersPage } from './superadmin/AdminUsersPage';
 import { CommissionRulesPage } from './superadmin/CommissionRulesPage';
+import { CoursesPage } from './superadmin/CoursesPage';
 import { PayoutsPage } from './superadmin/PayoutsPage';
 import { CeoAuditLogsPage } from './superadmin/CeoAuditLogsPage';
 
@@ -30,6 +31,7 @@ export const SuperAdminDashboard = () => (
       <Route path="admins" element={<AdminsPage />} />
       <Route path="admin-users" element={<AdminUsersPage />} />
       <Route path="rules" element={<CommissionRulesPage />} />
+      <Route path="courses" element={<CoursesPage />} />
       <Route path="payouts" element={<PayoutsPage />} />
       <Route path="audit" element={<CeoAuditLogsPage />} />
     </Routes>

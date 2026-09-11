@@ -138,6 +138,9 @@ export interface CommissionRules {
   directorSignupBonusUzs: number;
   teacherMonthlyPercent: number;
   directorMonthlyPercent: number;
+  teacherFirstPaymentPercent: number;
+  directorFirstPaymentPercent: number;
+  specialPriceUzs: number;
 }
 
 export interface Payout {

@@ -55,11 +55,14 @@ const run = async (): Promise<void> => {
     await db.insert(commissionRules).values({
       teacherSignupBonusUzs: 5_000_000,
       directorSignupBonusUzs: 10_000_000,
-      teacherMonthlyPercent: 1000,   // 10.00%
-      directorMonthlyPercent: 500,   // 5.00%
+      teacherMonthlyPercent: 1000,          // 10.00% ongoing, while ACTIVE
+      directorMonthlyPercent: 500,          // 5.00% ongoing, while ACTIVE
+      teacherFirstPaymentPercent: 2000,     // 20.00% on the first payment only
+      directorFirstPaymentPercent: 1000,    // 10.00% on the first payment only
+      specialPriceUzs: 0,                   // unset — CEO configures this later; falls back to actual amount paid
       isActive: true,
     });
-    console.log('Default commission rules seeded (teacher 10%, director 5%).');
+    console.log('Default commission rules seeded (teacher 10%/20% first, director 5%/10% first).');
   }
 
   console.log('Seed complete.');

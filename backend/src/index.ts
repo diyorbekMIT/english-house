@@ -11,6 +11,7 @@ import { commissionRulesRouter } from './routes/commission-rules.js';
 import { payoutsRouter } from './routes/payouts.js';
 import { auditLogsRouter } from './routes/audit-logs.js';
 import { schoolsRouter } from './routes/schools.js';
+import { coursesRouter } from './routes/courses.js';
 import { analyticsRouter } from './routes/analytics.js';
 
 export { JWT_SECRET };
@@ -23,6 +24,7 @@ app.use(express.json());
 app.use('/auth', authRouter);
 app.use('/users', usersRouter);
 app.use('/schools', schoolsRouter);
+app.use('/courses', coursesRouter);
 app.use('/students', studentsRouter);
 app.use('/students/:studentId/monthly-payments', paymentsRouter);
 app.use('/first-payments', firstPaymentsRouter);

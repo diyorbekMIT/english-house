@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { normalizePhone, deriveStudyStatusOnCallStatusChange } from '../routes/students.js';
+import { isEligibleForBonus, selectCommissionBaseUzs } from '../routes/payments.js';
 import { computeBalance } from '../lib/balance.js';
 
 describe('Phone Normalization', () => {
@@ -54,6 +55,28 @@ describe('Student Status Pipeline', () => {
     for (const status of nonTriggeringStatuses) {
       expect(deriveStudyStatusOnCallStatusChange(status)).toBeUndefined();
     }
+  });
+});
+
+describe('Course-Based Bonus Calculation', () => {
+  it('the first payment is always eligible for a bonus, regardless of study status', () => {
+    expect(isEligibleForBonus(true, 'NOACTIVE')).toBe(true);
+    expect(isEligibleForBonus(true, 'ACTIVE')).toBe(true);
+  });
+
+  it('a later payment only earns a bonus while the student is ACTIVE', () => {
+    expect(isEligibleForBonus(false, 'ACTIVE')).toBe(true);
+    expect(isEligibleForBonus(false, 'NOACTIVE')).toBe(false);
+  });
+
+  it('uses the CEO-set special price as the bonus base when one is configured', () => {
+    expect(selectCommissionBaseUzs(1_000_000, 650_000)).toBe(1_000_000);
+  });
+
+  it('falls back to the actual amount paid when no special price is configured', () => {
+    expect(selectCommissionBaseUzs(null, 650_000)).toBe(650_000);
+    expect(selectCommissionBaseUzs(undefined, 650_000)).toBe(650_000);
+    expect(selectCommissionBaseUzs(0, 650_000)).toBe(650_000);
   });
 });
 

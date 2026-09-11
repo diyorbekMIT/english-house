@@ -3,6 +3,8 @@ import { useState, type FormEvent } from 'react';
 import { api } from '../../lib/api';
 import { useFeedback } from '../../contexts/FeedbackContext';
 import type { CommissionRules } from './types';
+import { formatUzs } from '../../lib/format';
+import { AmountInput } from '../../components/AmountInput';
 
 export const CommissionRulesPage = () => {
   const qc = useQueryClient();
@@ -16,6 +18,9 @@ export const CommissionRulesPage = () => {
     directorSignupBonusUzs: '',
     teacherMonthlyPercent: '',
     directorMonthlyPercent: '',
+    teacherFirstPaymentPercent: '',
+    directorFirstPaymentPercent: '',
+    specialPriceUzs: '',
   });
   const [saved, setSaved] = useState(false);
   const { confirm, showToast } = useFeedback();
@@ -47,14 +52,20 @@ export const CommissionRulesPage = () => {
     const directorBonus = Number(form.directorSignupBonusUzs || rules?.directorSignupBonusUzs || 0);
     const teacherPct = Number(form.teacherMonthlyPercent || rules?.teacherMonthlyPercent || 0);
     const directorPct = Number(form.directorMonthlyPercent || rules?.directorMonthlyPercent || 0);
+    const teacherFirstPct = Number(form.teacherFirstPaymentPercent || rules?.teacherFirstPaymentPercent || 0);
+    const directorFirstPct = Number(form.directorFirstPaymentPercent || rules?.directorFirstPaymentPercent || 0);
+    const specialPrice = Number(form.specialPriceUzs || rules?.specialPriceUzs || 0);
 
     const confirmed = await confirm({
       title: "Komissiya qoidalarini yangilashni tasdiqlaysizmi?",
       message: "Diqqat: Ushbu stavkalar o'qituvchilar va direktorlarning kelgusi barcha to'lovlariga ta'sir qiladi.",
       variant: "warning",
       details: [
-        { label: "O'qituvchi ro'yxat bonusi", value: `${teacherBonus.toLocaleString()} UZS` },
-        { label: "Direktor ro'yxat bonusi", value: `${directorBonus.toLocaleString()} UZS` },
+        { label: "O'qituvchi ro'yxat bonusi", value: `${formatUzs(teacherBonus)} UZS` },
+        { label: "Direktor ro'yxat bonusi", value: `${formatUzs(directorBonus)} UZS` },
+        { label: "Maxsus narx (bonus hisoblash uchun)", value: specialPrice > 0 ? `${formatUzs(specialPrice)} UZS` : "O'rnatilmagan — to'langan haqiqiy summa ishlatiladi" },
+        { label: "O'qituvchi birinchi to'lov foizi", value: `${teacherFirstPct / 100}% (${teacherFirstPct} b.p.)` },
+        { label: "Direktor birinchi to'lov foizi", value: `${directorFirstPct / 100}% (${directorFirstPct} b.p.)` },
         { label: "O'qituvchi oylik ulushi", value: `${teacherPct / 100}% (${teacherPct} b.p.)` },
         { label: "Direktor oylik ulushi", value: `${directorPct / 100}% (${directorPct} b.p.)` },
       ],
@@ -67,6 +78,9 @@ export const CommissionRulesPage = () => {
       directorSignupBonusUzs: directorBonus,
       teacherMonthlyPercent: teacherPct,
       directorMonthlyPercent: directorPct,
+      teacherFirstPaymentPercent: teacherFirstPct,
+      directorFirstPaymentPercent: directorFirstPct,
+      specialPriceUzs: specialPrice,
     });
   };
 
@@ -81,11 +95,25 @@ export const CommissionRulesPage = () => {
         <div className="card grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
           <div>
             <p className="text-xs font-semibold text-slate-500 uppercase">O'qituvchi ro'yxat bonusi</p>
-            <p className="text-lg font-bold text-slate-900 mt-0.5">{rules.teacherSignupBonusUzs.toLocaleString()} UZS</p>
+            <p className="text-lg font-bold text-slate-900 mt-0.5">{formatUzs(rules.teacherSignupBonusUzs)} UZS</p>
           </div>
           <div>
             <p className="text-xs font-semibold text-slate-500 uppercase">Direktor ro'yxat bonusi</p>
-            <p className="text-lg font-bold text-slate-900 mt-0.5">{rules.directorSignupBonusUzs.toLocaleString()} UZS</p>
+            <p className="text-lg font-bold text-slate-900 mt-0.5">{formatUzs(rules.directorSignupBonusUzs)} UZS</p>
+          </div>
+          <div className="sm:col-span-2">
+            <p className="text-xs font-semibold text-slate-500 uppercase">Maxsus narx (bonus hisoblash uchun)</p>
+            <p className="text-lg font-bold text-emerald-700 mt-0.5">
+              {rules.specialPriceUzs > 0 ? `${formatUzs(rules.specialPriceUzs)} UZS` : "O'rnatilmagan"}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs font-semibold text-slate-500 uppercase">O'qituvchi birinchi to'lov foizi</p>
+            <p className="text-lg font-bold text-amber-700 mt-0.5">{(rules.teacherFirstPaymentPercent / 100).toFixed(2)}%</p>
+          </div>
+          <div>
+            <p className="text-xs font-semibold text-slate-500 uppercase">Direktor birinchi to'lov foizi</p>
+            <p className="text-lg font-bold text-amber-700 mt-0.5">{(rules.directorFirstPaymentPercent / 100).toFixed(2)}%</p>
           </div>
           <div>
             <p className="text-xs font-semibold text-slate-500 uppercase">O'qituvchi oylik foizi</p>
@@ -103,44 +131,92 @@ export const CommissionRulesPage = () => {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="label">O'qituvchi ro'yxat bonusi (UZS)</label>
-            <input
-              type="number"
+            <AmountInput
               className="input"
               placeholder={String(rules?.teacherSignupBonusUzs ?? 50000)}
               value={form.teacherSignupBonusUzs}
-              onChange={(e) => setForm((p) => ({ ...p, teacherSignupBonusUzs: e.target.value }))}
+              onChange={(raw) => setForm((p) => ({ ...p, teacherSignupBonusUzs: raw }))}
             />
           </div>
           <div>
             <label className="label">Direktor ro'yxat bonusi (UZS)</label>
-            <input
-              type="number"
+            <AmountInput
               className="input"
               placeholder={String(rules?.directorSignupBonusUzs ?? 100000)}
               value={form.directorSignupBonusUzs}
-              onChange={(e) => setForm((p) => ({ ...p, directorSignupBonusUzs: e.target.value }))}
+              onChange={(raw) => setForm((p) => ({ ...p, directorSignupBonusUzs: raw }))}
             />
           </div>
-          <div>
-            <label className="label">O'qituvchi oylik foizi (1000 = 10%)</label>
-            <input
-              type="number"
+
+          <div className="border-t border-slate-200 pt-4">
+            <label className="label">Maxsus narx — bonus hisoblash uchun (UZS)</label>
+            <AmountInput
               className="input"
-              placeholder={String(rules?.teacherMonthlyPercent ?? 1000)}
-              value={form.teacherMonthlyPercent}
-              onChange={(e) => setForm((p) => ({ ...p, teacherMonthlyPercent: e.target.value }))}
+              placeholder={String(rules?.specialPriceUzs || 1000000)}
+              value={form.specialPriceUzs}
+              onChange={(raw) => setForm((p) => ({ ...p, specialPriceUzs: raw }))}
             />
+            <p className="text-2xs text-slate-500 mt-1">
+              Direktor va o'qituvchi bonuslari (birinchi to'lov ham, keyingi oyliklar ham) shu narxdan hisoblanadi —
+              o'quvchi to'lagan haqiqiy summadan emas. Agar 0 qoldirilsa, haqiqiy to'lov summasi ishlatiladi.
+            </p>
           </div>
-          <div>
-            <label className="label">Direktor oylik foizi (500 = 5%)</label>
-            <input
-              type="number"
-              className="input"
-              placeholder={String(rules?.directorMonthlyPercent ?? 500)}
-              value={form.directorMonthlyPercent}
-              onChange={(e) => setForm((p) => ({ ...p, directorMonthlyPercent: e.target.value }))}
-            />
+
+          <div className="border-t border-slate-200 pt-4">
+            <p className="text-xs font-semibold text-amber-700 uppercase mb-2">Birinchi to'lov bonusi (kattaroq stavka)</p>
+            <p className="text-2xs text-slate-500 mb-3">
+              Faqat o'quvchining birinchi to'lovida beriladi.
+            </p>
+            <div className="space-y-4">
+              <div>
+                <label className="label">O'qituvchi birinchi to'lov foizi (1000 = 10%)</label>
+                <input
+                  type="number"
+                  className="input"
+                  placeholder={String(rules?.teacherFirstPaymentPercent ?? 2000)}
+                  value={form.teacherFirstPaymentPercent}
+                  onChange={(e) => setForm((p) => ({ ...p, teacherFirstPaymentPercent: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label className="label">Direktor birinchi to'lov foizi (1000 = 10%)</label>
+                <input
+                  type="number"
+                  className="input"
+                  placeholder={String(rules?.directorFirstPaymentPercent ?? 1000)}
+                  value={form.directorFirstPaymentPercent}
+                  onChange={(e) => setForm((p) => ({ ...p, directorFirstPaymentPercent: e.target.value }))}
+                />
+              </div>
+            </div>
           </div>
+
+          <div className="border-t border-slate-200 pt-4">
+            <p className="text-xs font-semibold text-slate-500 uppercase mb-2">Oylik bonus (kichikroq stavka, FAOL bo'lganda)</p>
+            <div className="space-y-4">
+              <div>
+                <label className="label">O'qituvchi oylik foizi (1000 = 10%)</label>
+                <input
+                  type="number"
+                  className="input"
+                  placeholder={String(rules?.teacherMonthlyPercent ?? 1000)}
+                  value={form.teacherMonthlyPercent}
+                  onChange={(e) => setForm((p) => ({ ...p, teacherMonthlyPercent: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label className="label">Direktor oylik foizi (500 = 5%)</label>
+                <input
+                  type="number"
+                  className="input"
+                  placeholder={String(rules?.directorMonthlyPercent ?? 500)}
+                  value={form.directorMonthlyPercent}
+                  onChange={(e) => setForm((p) => ({ ...p, directorMonthlyPercent: e.target.value }))}
+                />
+              </div>
+            </div>
+          </div>
+
           {saved && <div className="notice-success">Qoidalar saqlandi!</div>}
           <button type="submit" className="btn-primary" disabled={mutation.isPending}>
             {mutation.isPending ? 'Saqlanmoqda…' : 'Qoidalarni saqlash'}

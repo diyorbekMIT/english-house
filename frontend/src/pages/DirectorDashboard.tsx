@@ -15,6 +15,7 @@ import PayoutHistoryList from '../components/PayoutHistoryList';
 import { useAuth } from '../contexts/AuthContext';
 import { getErrorMessage } from '../lib/errors';
 import type { Payout } from './superadmin/types';
+import { formatUzs } from '../lib/format';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 interface User {
@@ -1144,15 +1145,15 @@ const DirectorCommissionsPage = () => {
   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 flex-1 w-full">
     <div className="stat-card">
       <p className="text-xs font-semibold text-slate-500 uppercase">Jami hisoblangan</p>
-      <p className="text-2xl font-bold text-slate-900">{total.toLocaleString()} UZS</p>
+      <p className="text-2xl font-bold text-slate-900">{formatUzs(total)} UZS</p>
     </div>
     <div className="stat-card">
       <p className="text-xs font-semibold text-slate-500 uppercase">To'langan</p>
-      <p className="text-2xl font-bold text-emerald-600">{paid.toLocaleString()} UZS</p>
+      <p className="text-2xl font-bold text-emerald-600">{formatUzs(paid)} UZS</p>
     </div>
     <div className="stat-card">
       <p className="text-xs font-semibold text-slate-500 uppercase">Kutilayotgan</p>
-      <p className="text-2xl font-bold text-amber-600">{pending.toLocaleString()} UZS</p>
+      <p className="text-2xl font-bold text-amber-600">{formatUzs(pending)} UZS</p>
     </div>
   </div>
 </div>
@@ -1172,7 +1173,7 @@ const DirectorCommissionsPage = () => {
               {commissions.map((c) => (
                 <tr key={c.id}>
                   <td><span className="font-mono text-xs text-blue-900 bg-blue-50 px-2 py-0.5 rounded font-semibold">{c.type}</span></td>
-                  <td className="font-bold text-slate-900">{c.amountUzs.toLocaleString()} UZS</td>
+                  <td className="font-bold text-slate-900">{formatUzs(c.amountUzs)} UZS</td>
                   <td><StatusBadge value={c.status} type="commission" /></td>
                   <td className="text-slate-400 text-xs">{new Date(c.createdAt).toLocaleDateString()}</td>
                 </tr>

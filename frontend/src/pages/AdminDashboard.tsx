@@ -8,6 +8,8 @@ import StatusBadge from '../components/StatusBadge';
 import { useAuth } from '../contexts/AuthContext';
 import StudentPaymentHistoryPage from './StudentPaymentHistoryPage';
 import FirstPaymentsPage from './FirstPaymentsPage';
+import { formatUzs } from '../lib/format';
+import { AmountInput } from '../components/AmountInput';
 
 interface Student {
   id: number;
@@ -71,7 +73,7 @@ const PaymentModal = ({ student, onClose }: { student: Student; onClose: () => v
       showToast({
         type: 'success',
         title: "To'lov qabul qilindi",
-        message: `${student.fullName} uchun ${Number(amount).toLocaleString()} UZS to'lov muvaffaqiyatli saqlandi va komissiyalar hisoblandi!`,
+        message: `${student.fullName} uchun ${formatUzs(Number(amount))} UZS to'lov muvaffaqiyatli saqlandi va komissiyalar hisoblandi!`,
       });
       onClose();
     },
@@ -98,7 +100,7 @@ const PaymentModal = ({ student, onClose }: { student: Student; onClose: () => v
       details: [
         { label: "O'quvchi F.I.SH", value: student.fullName },
         { label: "Telefon", value: student.phone },
-        { label: "To'lov summasi", value: `${numAmount.toLocaleString()} UZS` },
+        { label: "To'lov summasi", value: `${formatUzs(numAmount)} UZS` },
         { label: "To'lov oyi", value: paidForMonth },
         { label: "To'lov usuli", value: paymentMethod === 'CASH' ? 'Naqd pul (CASH)' : paymentMethod === 'CARD' ? 'Karta orqali' : paymentMethod },
       ],
@@ -124,12 +126,11 @@ const PaymentModal = ({ student, onClose }: { student: Student; onClose: () => v
 
         <div>
           <label className="label">To'lov summasi (UZS)</label>
-          <input
-            type="number"
+          <AmountInput
             className="input"
             placeholder="500000"
             value={amount}
-            onChange={(e) => setAmount(e.target.value)}
+            onChange={setAmount}
             required
           />
         </div>
@@ -687,7 +688,7 @@ const AdminCommissionsPage = () => {
       details: [
         { label: "Komissiya ID", value: `#${c.id}` },
         { label: "Foydalanuvchi ID", value: c.userId },
-        { label: "To'lov summasi", value: `${c.amountUzs.toLocaleString()} UZS` },
+        { label: "To'lov summasi", value: `${formatUzs(c.amountUzs)} UZS` },
         { label: "Komissiya turi", value: c.type },
       ],
       confirmText: "Ha, to'langan deb belgilash",
@@ -725,11 +726,11 @@ const AdminCommissionsPage = () => {
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="stat-card">
           <p className="text-xs font-semibold text-slate-500 uppercase">Jami hisoblangan</p>
-          <p className="text-2xl font-bold text-slate-900">{total.toLocaleString()} UZS</p>
+          <p className="text-2xl font-bold text-slate-900">{formatUzs(total)} UZS</p>
         </div>
         <div className="stat-card">
           <p className="text-xs font-semibold text-slate-500 uppercase">Kutilayotgan (To'lanmagan)</p>
-          <p className="text-2xl font-bold text-amber-600">{pending.toLocaleString()} UZS</p>
+          <p className="text-2xl font-bold text-amber-600">{formatUzs(pending)} UZS</p>
         </div>
       </div>
 
@@ -754,7 +755,7 @@ const AdminCommissionsPage = () => {
                   <td className="font-mono text-xs text-slate-500">#{c.id}</td>
                   <td className="font-mono text-xs font-bold text-slate-800">{c.userId}</td>
                   <td><span className="font-mono text-xs text-blue-900 bg-blue-50 px-2 py-0.5 rounded font-semibold">{c.type}</span></td>
-                  <td className="font-bold text-slate-900">{c.amountUzs.toLocaleString()} UZS</td>
+                  <td className="font-bold text-slate-900">{formatUzs(c.amountUzs)} UZS</td>
                   <td><StatusBadge value={c.status} type="commission" /></td>
                   <td className="text-slate-400 text-xs">{new Date(c.createdAt).toLocaleDateString()}</td>
                   <td>

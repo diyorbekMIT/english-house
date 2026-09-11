@@ -7,6 +7,8 @@ import { getErrorMessage } from '../lib/errors';
 import Layout from '../components/Layout';
 import StatusBadge from '../components/StatusBadge';
 import StudentPaymentHistoryPage from './StudentPaymentHistoryPage';
+import { formatUzs } from '../lib/format';
+import { AmountInput } from '../components/AmountInput';
 
 interface Student {
   id: number;
@@ -43,7 +45,7 @@ const PaymentModal = ({ student, onClose }: { student: Student; onClose: () => v
       showToast({
         type: 'success',
         title: "To'lov qabul qilindi",
-        message: `${student.fullName} uchun ${Number(amount).toLocaleString()} UZS to'lov muvaffaqiyatli saqlandi.`,
+        message: `${student.fullName} uchun ${formatUzs(Number(amount))} UZS to'lov muvaffaqiyatli saqlandi.`,
       });
       onClose();
     },
@@ -65,7 +67,7 @@ const PaymentModal = ({ student, onClose }: { student: Student; onClose: () => v
       message: "To'lov saqlanadi va to'lovlar tarixiga qo'shiladi.",
       details: [
         { label: "O'quvchi F.I.SH", value: student.fullName },
-        { label: "To'lov summasi", value: `${numAmount.toLocaleString()} UZS` },
+        { label: "To'lov summasi", value: `${formatUzs(numAmount)} UZS` },
         { label: "To'lov oyi", value: paidForMonth },
       ],
       confirmText: "Ha, to'lovni qabul qilish",
@@ -83,7 +85,7 @@ const PaymentModal = ({ student, onClose }: { student: Student; onClose: () => v
         </div>
         <div>
           <label className="label">To'lov summasi (UZS)</label>
-          <input type="number" className="input" placeholder="500000" value={amount} onChange={(e) => setAmount(e.target.value)} required />
+          <AmountInput className="input" placeholder="500000" value={amount} onChange={setAmount} required />
         </div>
         <div className="grid grid-cols-2 gap-4">
           <div>

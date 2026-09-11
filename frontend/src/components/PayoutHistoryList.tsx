@@ -1,13 +1,12 @@
 import StatusBadge from './StatusBadge';
 import type { Payout } from '../pages/superadmin/types';
+import { formatUzs } from '../lib/format';
 
 const TYPE_LABELS: Record<Payout['type'], string> = {
   INITIAL_BONUS: "Boshlang'ich bonus",
   CREDIT: "Qo'shildi",
   DEBIT: 'Ayrildi',
 };
-
-const formatUzs = (n: number) => n.toLocaleString('uz-UZ', { maximumFractionDigits: 0 });
 
 interface Props {
   payouts: Payout[];

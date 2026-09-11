@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { formatUzs } from '../lib/format';
 
 interface CommissionCreditCardProps {
   schoolName?: string;   // e.g. "№ 21 — Ixtisoslashgan maktab"
@@ -27,9 +28,6 @@ const useAnimatedNumber = (target: number, duration = 900) => {
   }, [target, duration]);
   return value;
 };
-
-const formatUzs = (n: number) =>
-  n.toLocaleString('uz-UZ', { maximumFractionDigits: 0 });
 
 const CommissionCreditCard = ({
   schoolName,
