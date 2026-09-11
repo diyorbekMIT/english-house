@@ -78,7 +78,11 @@ export const StudentsDashboard = () => {
         >
           <option value="">Barcha qo'ng'iroq holatlari</option>
           <option value="WAITING">Kutilmoqda (WAITING)</option>
-          <option value="ACCEPTED">Qabul qilindi (ACCEPTED)</option>
+          <option value="CALLED">Aloqaga chiqildi (CALLED)</option>
+          <option value="REGISTERED">Kursga yozildi (REGISTERED)</option>
+          <option value="FIRST_LESSON">Birinchi dars (FIRST_LESSON)</option>
+          <option value="STARTED_STUDYING">Dars boshladi (STARTED_STUDYING)</option>
+          <option value="MADE_PAYMENT">To'lov qildi (MADE_PAYMENT)</option>
           <option value="REJECTED">Rad etildi (REJECTED)</option>
         </select>
         <select
@@ -87,8 +91,8 @@ export const StudentsDashboard = () => {
           onChange={(e) => setStudyFilter(e.target.value)}
         >
           <option value="">Barcha o'qish holatlari</option>
-          <option value="STUDYING">O'qiyapti (STUDYING)</option>
-          <option value="STOPPED">O'qimayapti (STOPPED)</option>
+          <option value="ACTIVE">Faol (ACTIVE)</option>
+          <option value="NOACTIVE">Faol emas (NOACTIVE)</option>
         </select>
         <span className="text-xs text-slate-500 sm:ml-auto font-medium">
           Topildi: {filtered.length} ta o'quvchi
@@ -116,7 +120,15 @@ export const StudentsDashboard = () => {
               )}
               {filtered.map((s) => (
                 <tr key={s.id} className="hover:bg-slate-50">
-                  <td className="font-bold text-slate-900">{s.fullName}</td>
+                  <td className="font-bold text-slate-900">
+                    <Link
+                      to={`/superadmin/students/${s.id}/payments`}
+                      className="hover:text-blue-900 hover:underline"
+                      title="To'lovlar tarixini ko'rish"
+                    >
+                      {s.fullName}
+                    </Link>
+                  </td>
                   <td className="font-mono text-xs text-blue-900 font-bold">{s.phone}</td>
                   <td className="font-mono text-xs text-slate-500">{s.secondaryPhone || '—'}</td>
                   <td>

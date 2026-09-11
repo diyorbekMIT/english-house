@@ -50,8 +50,8 @@ const AUDIT_ACTION_MAP: Record<string, { label: string; badgeClass: string; icon
     badgeClass: "bg-purple-50 text-purple-800 border-purple-300",
     icon: "👔",
   },
-  ADMIN_CREATE: {
-    label: "Admin yaratildi",
+  SALES_MANAGER_CREATE: {
+    label: "Sotuv menejeri yaratildi",
     badgeClass: "bg-cyan-50 text-cyan-800 border-cyan-300",
     icon: "🛡️",
   },

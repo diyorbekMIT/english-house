@@ -5,12 +5,14 @@ import Login from './pages/Login';
 import LandingPage from './pages/LandingPage';
 import SuperAdminDashboard from './pages/SuperAdminDashboard';
 import AdminDashboard from './pages/AdminDashboard';
+import AdminPanelDashboard from './pages/AdminPanelDashboard';
 import DirectorDashboard from './pages/DirectorDashboard';
 import TeacherDashboard from './pages/TeacherDashboard';
 
 const ROLE_PATHS: Record<string, string> = {
   SUPER_ADMIN: '/superadmin',
   MANAGER: '/manager',
+  SALES_MANAGER: '/sales-manager',
   ADMIN: '/admin',
   DIRECTOR: '/director',
   TEACHER: '/teacher',
@@ -65,10 +67,18 @@ const AppRouter = () => {
         }
       />
       <Route
+        path="/sales-manager/*"
+        element={
+          <ProtectedRoute allowedRoles={['SALES_MANAGER']}>
+            <AdminDashboard />
+          </ProtectedRoute>
+        }
+      />
+      <Route
         path="/admin/*"
         element={
           <ProtectedRoute allowedRoles={['ADMIN']}>
-            <AdminDashboard />
+            <AdminPanelDashboard />
           </ProtectedRoute>
         }
       />

@@ -228,10 +228,10 @@ export const UnifiedAdminTable: React.FC<UnifiedAdminTableProps> = ({ stats }) =
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4 border-b border-slate-100 pb-3">
         <div>
           <h2 className="text-base font-bold text-slate-900">
-            Adminlar qo'ng'iroq hisoboti va natijalari taqsimoti
+            Sotuv menejerlari qo'ng'iroq hisoboti va natijalari taqsimoti
           </h2>
           <p className="text-xs text-slate-500 mt-0.5">
-            Tanlangan davrda qaysi admin qancha qo'ng'iroq qilgan, qabul va rad qilish ko'rsatkichlari
+            Tanlangan davrda qaysi sotuv menejeri qancha qo'ng'iroq qilgan, qabul va rad qilish ko'rsatkichlari
           </p>
         </div>
         {/* Legend for the integrated progress bar */}
@@ -255,7 +255,7 @@ export const UnifiedAdminTable: React.FC<UnifiedAdminTableProps> = ({ stats }) =
         <table className="table">
           <thead>
             <tr>
-              <th>Admin F.I.SH</th>
+              <th>Sotuv menejeri F.I.SH</th>
               <th>Telefon</th>
               <th className="text-center">Jami qo'ng'iroqlar</th>
               <th className="min-w-[160px]">Natija taqsimoti (Vizual)</th>

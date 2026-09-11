@@ -28,8 +28,8 @@ export const TeacherStudentsDetailPage = () => {
     enabled: !isNaN(tIdNum),
   });
 
-  const studyingCount = students.filter((s) => s.studyStatus === 'STUDYING').length;
-  const stoppedCount = students.filter((s) => s.studyStatus === 'STOPPED').length;
+  const studyingCount = students.filter((s) => s.studyStatus === 'ACTIVE').length;
+  const stoppedCount = students.filter((s) => s.studyStatus === 'NOACTIVE').length;
 
   if (teacherLoading) {
     return <div className="p-8 text-center text-slate-500">O'qituvchi ma'lumotlari yuklanmoqda…</div>;

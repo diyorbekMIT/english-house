@@ -1,11 +1,15 @@
 const CALL_COLORS: Record<string, string> = {
   WAITING: 'background:#FEF9C3;color:#854D0E',
-  ACCEPTED: 'background:#DCFCE7;color:#166534',
+  CALLED: 'background:#DBEAFE;color:#1E40AF',
+  REGISTERED: 'background:#E0E7FF;color:#3730A3',
+  FIRST_LESSON: 'background:#CCFBF1;color:#0F766E',
+  STARTED_STUDYING: 'background:#CFFAFE;color:#155E75',
+  MADE_PAYMENT: 'background:#DCFCE7;color:#166534',
   REJECTED: 'background:#FEE2E2;color:#991B1B',
 };
 const STUDY_COLORS: Record<string, string> = {
-  STUDYING: 'background:#DCFCE7;color:#166534',
-  STOPPED: 'background:#FEE2E2;color:#991B1B',
+  ACTIVE: 'background:#DCFCE7;color:#166534',
+  NOACTIVE: 'background:#FEE2E2;color:#991B1B',
 };
 const COMMISSION_COLORS: Record<string, string> = {
   PENDING: 'background:#FEF9C3;color:#854D0E',
@@ -29,10 +33,14 @@ interface Props {
 
 const LABELS: Record<string, string> = {
   WAITING: 'Kutilmoqda',
-  ACCEPTED: 'Qabul qilindi',
+  CALLED: 'Aloqaga chiqildi',
+  REGISTERED: 'Kursga yozildi',
+  FIRST_LESSON: 'Birinchi dars',
+  STARTED_STUDYING: 'Dars boshladi',
+  MADE_PAYMENT: "To'lov qildi",
   REJECTED: 'Rad etildi',
-  STUDYING: "O'qiyapti",
-  STOPPED: "O'qimayapti",
+  ACTIVE: 'Faol',
+  NOACTIVE: 'Faol emas',
   PENDING: 'Kutilmoqda',
   READY_TO_PAY: 'Tayyor',
   PAID: "To'landi",

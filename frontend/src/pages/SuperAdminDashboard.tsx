@@ -5,8 +5,11 @@ import { SchoolsTeachersDashboard } from './superadmin/SchoolsTeachersDashboard'
 import { SchoolDetailTeachersPage } from './superadmin/SchoolDetailTeachersPage';
 import { TeacherStudentsDetailPage } from './superadmin/TeacherStudentsDetailPage';
 import { StudentsDashboard } from './superadmin/StudentsDashboard';
+import StudentPaymentHistoryPage from './StudentPaymentHistoryPage';
+import FirstPaymentsPage from './FirstPaymentsPage';
 import { DirectorsPage } from './superadmin/DirectorsPage';
 import { AdminsPage } from './superadmin/AdminsPage';
+import { AdminUsersPage } from './superadmin/AdminUsersPage';
 import { CommissionRulesPage } from './superadmin/CommissionRulesPage';
 import { PayoutsPage } from './superadmin/PayoutsPage';
 import { CeoAuditLogsPage } from './superadmin/CeoAuditLogsPage';
@@ -21,8 +24,11 @@ export const SuperAdminDashboard = () => (
       <Route path="teachers/:teacherId/students" element={<TeacherStudentsDetailPage />} />
       <Route path="teachers/:teacherId" element={<TeacherStudentsDetailPage />} />
       <Route path="students" element={<StudentsDashboard />} />
+      <Route path="students/:studentId/payments" element={<StudentPaymentHistoryPage />} />
+      <Route path="first-payments" element={<FirstPaymentsPage />} />
       <Route path="directors" element={<DirectorsPage />} />
       <Route path="admins" element={<AdminsPage />} />
+      <Route path="admin-users" element={<AdminUsersPage />} />
       <Route path="rules" element={<CommissionRulesPage />} />
       <Route path="payouts" element={<PayoutsPage />} />
       <Route path="audit" element={<CeoAuditLogsPage />} />

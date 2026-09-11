@@ -91,7 +91,7 @@ const DirectorOverviewDashboard = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [selectedTeacherId, setSelectedTeacherId] = useState<number | null>(null);
-  const [teacherFilterStatus, setTeacherFilterStatus] = useState<'ALL' | 'STUDYING' | 'STOPPED'>('ALL');
+  const [teacherFilterStatus, setTeacherFilterStatus] = useState<'ALL' | 'ACTIVE' | 'NOACTIVE'>('ALL');
   const [searchTeacherTerm, setSearchTeacherTerm] = useState('');
 
   const { data, isLoading, refetch, isFetching } = useQuery<DirectorSummaryResponse>({
@@ -147,8 +147,8 @@ const DirectorOverviewDashboard = () => {
   // Selected teacher for drill-down
   const selectedTeacher = teachers.find((t) => t.id === selectedTeacherId);
   const selectedTeacherStudents = (selectedTeacher?.students ?? []).filter((s) => {
-    if (teacherFilterStatus === 'STUDYING') return s.studyStatus === 'STUDYING';
-    if (teacherFilterStatus === 'STOPPED') return s.studyStatus === 'STOPPED';
+    if (teacherFilterStatus === 'ACTIVE') return s.studyStatus === 'ACTIVE';
+    if (teacherFilterStatus === 'NOACTIVE') return s.studyStatus === 'NOACTIVE';
     return true;
   });
 
@@ -354,9 +354,9 @@ const DirectorOverviewDashboard = () => {
                   Barchasi ({selectedTeacher.totalStudents})
                 </button>
                 <button
-                  onClick={() => setTeacherFilterStatus('STUDYING')}
+                  onClick={() => setTeacherFilterStatus('ACTIVE')}
                   className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-colors ${
-                    teacherFilterStatus === 'STUDYING'
+                    teacherFilterStatus === 'ACTIVE'
                       ? 'bg-emerald-600 text-white'
                       : 'bg-white text-emerald-700 hover:bg-emerald-50'
                   }`}
@@ -364,9 +364,9 @@ const DirectorOverviewDashboard = () => {
                   🟢 O'qiyotganlar ({selectedTeacher.studyingStudents})
                 </button>
                 <button
-                  onClick={() => setTeacherFilterStatus('STOPPED')}
+                  onClick={() => setTeacherFilterStatus('NOACTIVE')}
                   className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-colors ${
-                    teacherFilterStatus === 'STOPPED'
+                    teacherFilterStatus === 'NOACTIVE'
                       ? 'bg-rose-600 text-white'
                       : 'bg-white text-rose-700 hover:bg-rose-50'
                   }`}
@@ -580,7 +580,7 @@ const TeachersPage = () => {
     const list = students.filter((s) => s.teacherId === teacherId);
     return {
       total: list.length,
-      studying: list.filter((s) => s.studyStatus === 'STUDYING').length,
+      studying: list.filter((s) => s.studyStatus === 'ACTIVE').length,
     };
   };
 
@@ -754,16 +754,16 @@ const DirectorTeacherStudentsPage = () => {
 
   const teacherStudents = allStudents.filter((s) => s.teacherId === tId);
 
-  const studyingCount = teacherStudents.filter((s) => s.studyStatus === 'STUDYING').length;
-  const stoppedCount = teacherStudents.filter((s) => s.studyStatus === 'STOPPED').length;
+  const studyingCount = teacherStudents.filter((s) => s.studyStatus === 'ACTIVE').length;
+  const stoppedCount = teacherStudents.filter((s) => s.studyStatus === 'NOACTIVE').length;
   const waitingCount = teacherStudents.filter((s) => s.studyStatus === 'WAITING').length;
   const conversionPercent = teacherStudents.length > 0
     ? Math.round((studyingCount / teacherStudents.length) * 100)
     : 0;
 
   const filteredStudents = teacherStudents.filter((s) => {
-    if (filterStudy === 'STUDYING' && s.studyStatus !== 'STUDYING') return false;
-    if (filterStudy === 'STOPPED' && s.studyStatus !== 'STOPPED') return false;
+    if (filterStudy === 'ACTIVE' && s.studyStatus !== 'ACTIVE') return false;
+    if (filterStudy === 'NOACTIVE' && s.studyStatus !== 'NOACTIVE') return false;
     if (searchTerm) {
       const q = searchTerm.toLowerCase();
       return (
@@ -910,9 +910,9 @@ const DirectorTeacherStudentsPage = () => {
             Barchasi ({teacherStudents.length})
           </button>
           <button
-            onClick={() => setFilterStudy('STUDYING')}
+            onClick={() => setFilterStudy('ACTIVE')}
             className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors ${
-              filterStudy === 'STUDYING'
+              filterStudy === 'ACTIVE'
                 ? 'bg-emerald-600 text-white shadow-xs'
                 : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-200'
             }`}
@@ -920,9 +920,9 @@ const DirectorTeacherStudentsPage = () => {
             🟢 O'qiyotganlar ({studyingCount})
           </button>
           <button
-            onClick={() => setFilterStudy('STOPPED')}
+            onClick={() => setFilterStudy('NOACTIVE')}
             className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors ${
-              filterStudy === 'STOPPED'
+              filterStudy === 'NOACTIVE'
                 ? 'bg-rose-600 text-white shadow-xs'
                 : 'bg-rose-50 text-rose-800 hover:bg-rose-100 border border-rose-200'
             }`}
@@ -1000,12 +1000,12 @@ const DirectorStudentsPage = () => {
     queryFn: () => api.get('/students').then((r) => r.data),
   });
 
-  const studying = students.filter((s) => s.studyStatus === 'STUDYING').length;
-  const stopped = students.filter((s) => s.studyStatus === 'STOPPED').length;
+  const studying = students.filter((s) => s.studyStatus === 'ACTIVE').length;
+  const stopped = students.filter((s) => s.studyStatus === 'NOACTIVE').length;
 
   const filtered = students.filter((s) => {
-    if (filterStudy === 'STUDYING' && s.studyStatus !== 'STUDYING') return false;
-    if (filterStudy === 'STOPPED' && s.studyStatus !== 'STOPPED') return false;
+    if (filterStudy === 'ACTIVE' && s.studyStatus !== 'ACTIVE') return false;
+    if (filterStudy === 'NOACTIVE' && s.studyStatus !== 'NOACTIVE') return false;
     if (searchTerm) {
       const q = searchTerm.toLowerCase();
       return (
@@ -1045,15 +1045,15 @@ const DirectorStudentsPage = () => {
           <p className="text-2xl font-bold text-slate-900">{students.length}</p>
         </button>
         <button
-          onClick={() => setFilterStudy('STUDYING')}
-          className={`stat-card text-left transition-all ${filterStudy === 'STUDYING' ? 'ring-2 ring-emerald-600 bg-emerald-50/20' : ''}`}
+          onClick={() => setFilterStudy('ACTIVE')}
+          className={`stat-card text-left transition-all ${filterStudy === 'ACTIVE' ? 'ring-2 ring-emerald-600 bg-emerald-50/20' : ''}`}
         >
           <p className="text-xs font-semibold text-emerald-800 uppercase">🟢 O'qiyotganlar</p>
           <p className="text-2xl font-bold text-emerald-600">{studying}</p>
         </button>
         <button
-          onClick={() => setFilterStudy('STOPPED')}
-          className={`stat-card text-left transition-all ${filterStudy === 'STOPPED' ? 'ring-2 ring-rose-600 bg-rose-50/20' : ''}`}
+          onClick={() => setFilterStudy('NOACTIVE')}
+          className={`stat-card text-left transition-all ${filterStudy === 'NOACTIVE' ? 'ring-2 ring-rose-600 bg-rose-50/20' : ''}`}
         >
           <p className="text-xs font-semibold text-rose-800 uppercase">🔴 To'xtatganlar</p>
           <p className="text-2xl font-bold text-rose-600">{stopped}</p>

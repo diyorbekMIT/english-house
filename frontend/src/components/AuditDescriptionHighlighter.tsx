@@ -10,7 +10,7 @@ const PHRASE_REPLACEMENTS: [RegExp, string][] = [
   [/\s+created\s+by\s+/i, " — Ro'yxatdan o'tkazuvchi: "],
   [/^Director\s+/i, "Direktor "],
   [/^Teacher\s+/i, "O'qituvchi "],
-  [/^Admin\s+/i, "Admin "],
+  [/^Sales manager\s+/i, "Sotuv menejeri "],
   [/^School\s+/i, "Maktab "],
   [/\s+created$/i, " yaratildi"],
   [/\s+updated$/i, " yangilandi"],
@@ -40,10 +40,12 @@ export const AuditDescriptionHighlighter: React.FC<Props> = ({ text }) => {
 
   // Regex to split by:
   // 1. Quoted names/strings: 'Name'
-  // 2. Statuses: ACCEPTED, REJECTED, WAITING, STUDYING, STOPPED, PAID
-  // 3. Roles: TEACHER, DIRECTOR, ADMIN, SUPER_ADMIN, SuperAdmin, MANAGER
+  // 2. Call statuses: WAITING, CALLED, REGISTERED, FIRST_LESSON, STARTED_STUDYING, MADE_PAYMENT, REJECTED
+  // 3. Study statuses: ACTIVE, NOACTIVE
+  // 4. Other: PAID
+  // 5. Roles: TEACHER, DIRECTOR, SALES_MANAGER, SUPER_ADMIN, SuperAdmin, MANAGER
   const regex =
-    /('([^']+)')|\b(ACCEPTED|REJECTED|WAITING|STUDYING|STOPPED|PAID|TEACHER|DIRECTOR|SUPER_ADMIN|SuperAdmin|MANAGER)\b/g;
+    /('([^']+)')|\b(WAITING|CALLED|REGISTERED|FIRST_LESSON|STARTED_STUDYING|MADE_PAYMENT|REJECTED|ACTIVE|NOACTIVE|PAID|TEACHER|DIRECTOR|SALES_MANAGER|SUPER_ADMIN|SuperAdmin|MANAGER)\b/g;
 
   const elements: React.ReactNode[] = [];
   let lastIndex = 0;
@@ -75,13 +77,58 @@ export const AuditDescriptionHighlighter: React.FC<Props> = ({ text }) => {
       );
     } else if (keyword) {
       // Status badges in Uzbek
-      if (keyword === 'ACCEPTED') {
+      if (keyword === 'WAITING') {
+        elements.push(
+          <span
+            key={`kw-${match.index}`}
+            className="inline-flex items-center px-2 py-0.5 mx-0.5 rounded-full font-bold text-amber-800 bg-amber-100 border border-amber-300 text-xs"
+          >
+            ⏳ Kutilmoqda (WAITING)
+          </span>
+        );
+      } else if (keyword === 'CALLED') {
+        elements.push(
+          <span
+            key={`kw-${match.index}`}
+            className="inline-flex items-center px-2 py-0.5 mx-0.5 rounded-full font-bold text-blue-800 bg-blue-100 border border-blue-300 text-xs"
+          >
+            📞 Aloqaga chiqildi (CALLED)
+          </span>
+        );
+      } else if (keyword === 'REGISTERED') {
+        elements.push(
+          <span
+            key={`kw-${match.index}`}
+            className="inline-flex items-center px-2 py-0.5 mx-0.5 rounded-full font-bold text-indigo-800 bg-indigo-100 border border-indigo-300 text-xs"
+          >
+            Kursga yozildi (REGISTERED)
+          </span>
+        );
+      } else if (keyword === 'FIRST_LESSON') {
+        elements.push(
+          <span
+            key={`kw-${match.index}`}
+            className="inline-flex items-center px-2 py-0.5 mx-0.5 rounded-full font-bold text-teal-800 bg-teal-100 border border-teal-300 text-xs"
+          >
+            Birinchi dars (FIRST_LESSON)
+          </span>
+        );
+      } else if (keyword === 'STARTED_STUDYING') {
+        elements.push(
+          <span
+            key={`kw-${match.index}`}
+            className="inline-flex items-center px-2 py-0.5 mx-0.5 rounded-full font-bold text-cyan-800 bg-cyan-100 border border-cyan-300 text-xs"
+          >
+            Dars boshladi (STARTED_STUDYING)
+          </span>
+        );
+      } else if (keyword === 'MADE_PAYMENT') {
         elements.push(
           <span
             key={`kw-${match.index}`}
             className="inline-flex items-center px-2 py-0.5 mx-0.5 rounded-full font-bold text-emerald-800 bg-emerald-100 border border-emerald-300 text-xs"
           >
-            ✓ Qabul qilindi (ACCEPTED)
+            ✓ To'lov qildi (MADE_PAYMENT)
           </span>
         );
       } else if (keyword === 'REJECTED') {
@@ -93,31 +140,22 @@ export const AuditDescriptionHighlighter: React.FC<Props> = ({ text }) => {
             ✕ Rad etildi (REJECTED)
           </span>
         );
-      } else if (keyword === 'WAITING') {
-        elements.push(
-          <span
-            key={`kw-${match.index}`}
-            className="inline-flex items-center px-2 py-0.5 mx-0.5 rounded-full font-bold text-amber-800 bg-amber-100 border border-amber-300 text-xs"
-          >
-            ⏳ Kutilmoqda (WAITING)
-          </span>
-        );
-      } else if (keyword === 'STUDYING') {
+      } else if (keyword === 'ACTIVE') {
         elements.push(
           <span
             key={`kw-${match.index}`}
             className="inline-flex items-center px-2 py-0.5 mx-0.5 rounded-full font-bold text-emerald-800 bg-emerald-100 border border-emerald-300 text-xs"
           >
-            O'qimoqda (STUDYING)
+            Faol (ACTIVE)
           </span>
         );
-      } else if (keyword === 'STOPPED') {
+      } else if (keyword === 'NOACTIVE') {
         elements.push(
           <span
             key={`kw-${match.index}`}
             className="inline-flex items-center px-2 py-0.5 mx-0.5 rounded-full font-bold text-rose-800 bg-rose-100 border border-rose-300 text-xs"
           >
-            To'xtatildi (STOPPED)
+            Faol emas (NOACTIVE)
           </span>
         );
       } else if (keyword === 'PAID') {
@@ -148,13 +186,13 @@ export const AuditDescriptionHighlighter: React.FC<Props> = ({ text }) => {
             DIREKTOR (DIRECTOR)
           </span>
         );
-      } else if (keyword === 'ADMIN') {
+      } else if (keyword === 'SALES_MANAGER') {
         elements.push(
           <span
             key={`kw-${match.index}`}
             className="inline-flex items-center px-2 py-0.5 mx-0.5 rounded-md font-semibold text-blue-900 bg-blue-100 border border-blue-300 text-xs"
           >
-            ADMIN
+            SOTUV MENEJERI (SALES_MANAGER)
           </span>
         );
       } else if (keyword === 'SUPER_ADMIN' || keyword === 'SuperAdmin') {

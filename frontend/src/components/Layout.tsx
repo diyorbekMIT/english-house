@@ -41,19 +41,26 @@ const ROLE_NAV: Record<string, NavItem[]> = {
     { label: 'Lidlar va Natijalar', to: '/superadmin', icon: <IconMoney /> },
     { label: 'Maktablar & Ustozlar', to: '/superadmin/schools', icon: <IconSchool /> },
     { label: "O'quvchilar", to: '/superadmin/students', icon: <IconStudents /> },
+    { label: "Birinchi to'lovlar", to: '/superadmin/first-payments', icon: <IconMoney /> },
     { label: 'Direktorlar', to: '/superadmin/directors', icon: <IconUsers /> },
-    { label: 'Adminlar', to: '/superadmin/admins', icon: <IconUsers /> },
+    { label: 'Sotuv menejerlari', to: '/superadmin/admins', icon: <IconUsers /> },
+    { label: 'Adminlar', to: '/superadmin/admin-users', icon: <IconUsers /> },
     { label: "To'lovlar", to: '/superadmin/payouts', icon: <IconMoney /> },
     { label: 'Komissiya qoidalari', to: '/superadmin/rules', icon: <IconSettings /> },
     { label: 'Audit jurnali (CEO)', to: '/superadmin/audit', icon: <IconLog /> },
   ],
   MANAGER: [
     { label: "O'quvchilar", to: '/manager/students', icon: <IconStudents /> },
+    { label: "Birinchi to'lovlar", to: '/manager/first-payments', icon: <IconMoney /> },
     { label: 'Komissiyalar', to: '/manager/commissions', icon: <IconMoney /> },
+  ],
+  SALES_MANAGER: [
+    { label: "O'quvchilar", to: '/sales-manager/students', icon: <IconStudents /> },
+    { label: "Birinchi to'lovlar", to: '/sales-manager/first-payments', icon: <IconMoney /> },
+    { label: 'Komissiyalar', to: '/sales-manager/commissions', icon: <IconMoney /> },
   ],
   ADMIN: [
     { label: "O'quvchilar", to: '/admin/students', icon: <IconStudents /> },
-    { label: 'Komissiyalar', to: '/admin/commissions', icon: <IconMoney /> },
   ],
   DIRECTOR: [
     { label: 'Umumiy tahlil', to: '/director', icon: <IconSchool /> },
@@ -72,6 +79,7 @@ const ROLE_NAV: Record<string, NavItem[]> = {
 const ROLE_LABELS: Record<string, string> = {
   SUPER_ADMIN: 'CEO',
   MANAGER: 'Menejer',
+  SALES_MANAGER: 'Sotuv menejeri',
   ADMIN: 'Admin',
   DIRECTOR: 'Direktor',
   TEACHER: "O'qituvchi",

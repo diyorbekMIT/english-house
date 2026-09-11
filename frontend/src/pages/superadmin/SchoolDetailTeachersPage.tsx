@@ -23,7 +23,7 @@ export const SchoolDetailTeachersPage = () => {
     queryFn: () => api.get(`/students?schoolId=${idNum}`).then((r) => r.data),
   });
 
-  const studyingCount = students.filter((s) => s.studyStatus === 'STUDYING').length;
+  const studyingCount = students.filter((s) => s.studyStatus === 'ACTIVE').length;
 
   if (schoolLoading) {
     return <div className="p-8 text-center text-slate-500">Maktab ma'lumotlari yuklanmoqda…</div>;
@@ -138,7 +138,7 @@ export const SchoolDetailTeachersPage = () => {
               )}
               {teachers.map((t) => {
                 const tStudents = students.filter((st) => st.teacherId === t.id);
-                const tStudying = tStudents.filter((st) => st.studyStatus === 'STUDYING').length;
+                const tStudying = tStudents.filter((st) => st.studyStatus === 'ACTIVE').length;
 
                 return (
                   <tr key={t.id} className="hover:bg-slate-50">

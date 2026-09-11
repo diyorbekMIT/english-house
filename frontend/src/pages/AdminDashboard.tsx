@@ -6,6 +6,8 @@ import { useFeedback } from '../contexts/FeedbackContext';
 import Layout from '../components/Layout';
 import StatusBadge from '../components/StatusBadge';
 import { useAuth } from '../contexts/AuthContext';
+import StudentPaymentHistoryPage from './StudentPaymentHistoryPage';
+import FirstPaymentsPage from './FirstPaymentsPage';
 
 interface Student {
   id: number;
@@ -199,7 +201,7 @@ const CallStatusModal = ({
   const [callStatus, setCallStatus] = useState(student.callStatus || 'WAITING');
   const [callNote, setCallNote] = useState(student.callNote || '');
   const [updateStudyStatus, setUpdateStudyStatus] = useState(false);
-  const [targetStudyStatus, setTargetStudyStatus] = useState(student.studyStatus || 'STOPPED');
+  const [targetStudyStatus, setTargetStudyStatus] = useState(student.studyStatus || 'NOACTIVE');
   const [error, setError] = useState('');
   const { showToast } = useFeedback();
 
@@ -209,7 +211,9 @@ const CallStatusModal = ({
         callStatus,
         callNote: callNote.trim() || undefined,
       });
-      if (updateStudyStatus && targetStudyStatus !== student.studyStatus) {
+      // MADE_PAYMENT always activates study status server-side regardless of this
+      // checkbox, so only send a manual override for every other call status.
+      if (callStatus !== 'MADE_PAYMENT' && updateStudyStatus && targetStudyStatus !== student.studyStatus) {
         await api.patch(`/students/${student.id}/study-status`, {
           studyStatus: targetStudyStatus,
         });
@@ -263,10 +267,14 @@ const CallStatusModal = ({
 
         <div>
           <label className="label text-xs font-semibold text-slate-700">Qo'ng'iroq natijasi (Holati)</label>
-          <div className="grid grid-cols-3 gap-2 mt-1">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-1">
             {[
               { val: 'WAITING', label: 'Kutilmoqda', color: 'border-amber-300 bg-amber-50 text-amber-900' },
-              { val: 'ACCEPTED', label: 'Qabul qilindi', color: 'border-emerald-300 bg-emerald-50 text-emerald-900' },
+              { val: 'CALLED', label: 'Aloqaga chiqildi', color: 'border-blue-300 bg-blue-50 text-blue-900' },
+              { val: 'REGISTERED', label: 'Kursga yozildi', color: 'border-indigo-300 bg-indigo-50 text-indigo-900' },
+              { val: 'FIRST_LESSON', label: 'Birinchi dars', color: 'border-teal-300 bg-teal-50 text-teal-900' },
+              { val: 'STARTED_STUDYING', label: 'Dars boshladi', color: 'border-cyan-300 bg-cyan-50 text-cyan-900' },
+              { val: 'MADE_PAYMENT', label: "To'lov qildi", color: 'border-emerald-300 bg-emerald-50 text-emerald-900' },
               { val: 'REJECTED', label: 'Rad etildi', color: 'border-rose-300 bg-rose-50 text-rose-900' },
             ].map((opt) => (
               <button
@@ -274,12 +282,9 @@ const CallStatusModal = ({
                 type="button"
                 onClick={() => {
                   setCallStatus(opt.val);
-                  if (opt.val === 'ACCEPTED') {
+                  if (opt.val === 'REJECTED') {
                     setUpdateStudyStatus(true);
-                    setTargetStudyStatus('STUDYING');
-                  } else if (opt.val === 'REJECTED') {
-                    setUpdateStudyStatus(true);
-                    setTargetStudyStatus('STOPPED');
+                    setTargetStudyStatus('NOACTIVE');
                   }
                 }}
                 className={`py-2 px-2 text-xs font-semibold rounded-lg border text-center transition-all cursor-pointer ${
@@ -292,6 +297,11 @@ const CallStatusModal = ({
               </button>
             ))}
           </div>
+          {callStatus === 'MADE_PAYMENT' && (
+            <p className="text-2xs text-emerald-700 font-medium mt-1.5">
+              ✓ Bu holat tanlanganda "O'qish holati" avtomatik ravishda Faolga o'tadi.
+            </p>
+          )}
         </div>
 
         <div>
@@ -316,42 +326,45 @@ const CallStatusModal = ({
           />
         </div>
 
-        {/* Study status option */}
-        <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg space-y-2">
-          <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-slate-700">
-            <input
-              type="checkbox"
-              checked={updateStudyStatus}
-              onChange={(e) => setUpdateStudyStatus(e.target.checked)}
-              className="rounded text-blue-900 focus:ring-blue-500 cursor-pointer"
-            />
-            <span>O'qish holatini ham birga yangilash</span>
-          </label>
-          {updateStudyStatus && (
-            <div className="flex items-center gap-3 pt-1">
-              <label className="flex items-center gap-1.5 text-xs font-medium text-slate-700 cursor-pointer">
-                <input
-                  type="radio"
-                  name="modalStudyStatus"
-                  value="STUDYING"
-                  checked={targetStudyStatus === 'STUDYING'}
-                  onChange={() => setTargetStudyStatus('STUDYING')}
-                />
-                <span>O'qiyapti (STUDYING)</span>
-              </label>
-              <label className="flex items-center gap-1.5 text-xs font-medium text-slate-700 cursor-pointer">
-                <input
-                  type="radio"
-                  name="modalStudyStatus"
-                  value="STOPPED"
-                  checked={targetStudyStatus === 'STOPPED'}
-                  onChange={() => setTargetStudyStatus('STOPPED')}
-                />
-                <span>O'qimayapti (STOPPED)</span>
-              </label>
-            </div>
-          )}
-        </div>
+        {/* Study status option — hidden for MADE_PAYMENT since that's an automatic,
+            non-optional server-side transition */}
+        {callStatus !== 'MADE_PAYMENT' && (
+          <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg space-y-2">
+            <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-slate-700">
+              <input
+                type="checkbox"
+                checked={updateStudyStatus}
+                onChange={(e) => setUpdateStudyStatus(e.target.checked)}
+                className="rounded text-blue-900 focus:ring-blue-500 cursor-pointer"
+              />
+              <span>O'qish holatini ham birga yangilash</span>
+            </label>
+            {updateStudyStatus && (
+              <div className="flex items-center gap-3 pt-1">
+                <label className="flex items-center gap-1.5 text-xs font-medium text-slate-700 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="modalStudyStatus"
+                    value="ACTIVE"
+                    checked={targetStudyStatus === 'ACTIVE'}
+                    onChange={() => setTargetStudyStatus('ACTIVE')}
+                  />
+                  <span>Faol (ACTIVE)</span>
+                </label>
+                <label className="flex items-center gap-1.5 text-xs font-medium text-slate-700 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="modalStudyStatus"
+                    value="NOACTIVE"
+                    checked={targetStudyStatus === 'NOACTIVE'}
+                    onChange={() => setTargetStudyStatus('NOACTIVE')}
+                  />
+                  <span>Faol emas (NOACTIVE)</span>
+                </label>
+              </div>
+            )}
+          </div>
+        )}
 
         <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
           <button
@@ -384,7 +397,7 @@ const CallStatusModal = ({
 const StudentsPage = () => {
   const qc = useQueryClient();
   const { user } = useAuth();
-  const basePath = user?.role === 'MANAGER' ? '/manager' : '/admin';
+  const basePath = user?.role === 'MANAGER' ? '/manager' : '/sales-manager';
   const [callFilter, setCallFilter] = useState('');
   const [studyFilter, setStudyFilter] = useState('');
   const [payingStudent, setPayingStudent] = useState<Student | null>(null);
@@ -416,7 +429,11 @@ const StudentsPage = () => {
     if (s.callStatus === newStatus) return;
     const statusLabels: Record<string, string> = {
       WAITING: 'Kutilmoqda (WAITING)',
-      ACCEPTED: 'Qabul qilindi (ACCEPTED)',
+      CALLED: 'Aloqaga chiqildi (CALLED)',
+      REGISTERED: 'Kursga yozildi (REGISTERED)',
+      FIRST_LESSON: 'Birinchi dars (FIRST_LESSON)',
+      STARTED_STUDYING: 'Dars boshladi (STARTED_STUDYING)',
+      MADE_PAYMENT: "To'lov qildi (MADE_PAYMENT)",
       REJECTED: 'Rad etildi (REJECTED)',
     };
     const confirmed = await confirm({
@@ -454,19 +471,19 @@ const StudentsPage = () => {
   };
 
   const handleStudyStatusToggle = async (s: Student) => {
-    const nextStatus = s.studyStatus === 'STUDYING' ? 'STOPPED' : 'STUDYING';
+    const nextStatus = s.studyStatus === 'ACTIVE' ? 'NOACTIVE' : 'ACTIVE';
     const confirmed = await confirm({
       title: "O'qish holatini o'zgartirish",
       message:
-        nextStatus === 'STOPPED'
-          ? `Diqqat! "${s.fullName}" o'qishni to'xtatgan deb belgilansinmi? Kelgusi oylar uchun komissiya hisoblanmaydi.`
-          : `"${s.fullName}" o'quvchisi yana faol o'qimoqda deb belgilansinmi?`,
+        nextStatus === 'NOACTIVE'
+          ? `Diqqat! "${s.fullName}" faol emas deb belgilansinmi? Kelgusi oylar uchun komissiya hisoblanmaydi.`
+          : `"${s.fullName}" o'quvchisi yana faol deb belgilansinmi?`,
       details: [
         { label: "O'quvchi", value: s.fullName },
-        { label: "Yangi holat", value: nextStatus === 'STUDYING' ? "O'qiyapti (Faol)" : "O'qish to'xtatildi (STOPPED)" },
+        { label: "Yangi holat", value: nextStatus === 'ACTIVE' ? "Faol (ACTIVE)" : "Faol emas (NOACTIVE)" },
       ],
       confirmText: "Ha, o'zgartirish",
-      variant: nextStatus === 'STOPPED' ? 'warning' : 'primary',
+      variant: nextStatus === 'NOACTIVE' ? 'warning' : 'primary',
     });
     if (!confirmed) return;
 
@@ -477,7 +494,7 @@ const StudentsPage = () => {
           showToast({
             type: 'success',
             title: "O'qish holati yangilandi",
-            message: `"${s.fullName}" uchun o'qish holati "${nextStatus === 'STUDYING' ? 'O‘qiyapti' : 'To‘xtatildi'}" ga o'zgartirildi.`,
+            message: `"${s.fullName}" uchun o'qish holati "${nextStatus === 'ACTIVE' ? 'Faol' : 'Faol emas'}" ga o'zgartirildi.`,
           });
         },
         onError: () => {
@@ -516,7 +533,11 @@ const StudentsPage = () => {
         >
           <option value="">Barcha qo'ng'iroq holatlari</option>
           <option value="WAITING">Kutilmoqda (WAITING)</option>
-          <option value="ACCEPTED">Qabul qilindi (ACCEPTED)</option>
+          <option value="CALLED">Aloqaga chiqildi (CALLED)</option>
+          <option value="REGISTERED">Kursga yozildi (REGISTERED)</option>
+          <option value="FIRST_LESSON">Birinchi dars (FIRST_LESSON)</option>
+          <option value="STARTED_STUDYING">Dars boshladi (STARTED_STUDYING)</option>
+          <option value="MADE_PAYMENT">To'lov qildi (MADE_PAYMENT)</option>
           <option value="REJECTED">Rad etildi (REJECTED)</option>
         </select>
         <select
@@ -525,8 +546,8 @@ const StudentsPage = () => {
           onChange={(e) => setStudyFilter(e.target.value)}
         >
           <option value="">Barcha o'qish holatlari</option>
-          <option value="STUDYING">O'qiyapti (STUDYING)</option>
-          <option value="STOPPED">O'qimayapti (STOPPED)</option>
+          <option value="ACTIVE">Faol (ACTIVE)</option>
+          <option value="NOACTIVE">Faol emas (NOACTIVE)</option>
         </select>
       </div>
 
@@ -551,7 +572,15 @@ const StudentsPage = () => {
               )}
               {students.map((s) => (
                 <tr key={s.id}>
-                  <td className="font-semibold text-slate-900">{s.fullName}</td>
+                  <td className="font-semibold text-slate-900">
+                    <Link
+                      to={`${basePath}/students/${s.id}/payments`}
+                      className="hover:text-blue-900 hover:underline"
+                      title="To'lovlar tarixini ko'rish"
+                    >
+                      {s.fullName}
+                    </Link>
+                  </td>
                   <td className="font-mono text-xs text-blue-900 font-bold">{s.phone}</td>
                   <td>
                     {s.schoolId ? (
@@ -758,7 +787,7 @@ const AdminCommissionsPage = () => {
 const AdminTeacherStudentsPage = () => {
   const { teacherId } = useParams<{ teacherId: string }>();
   const { user } = useAuth();
-  const basePath = user?.role === 'MANAGER' ? '/manager' : '/admin';
+  const basePath = user?.role === 'MANAGER' ? '/manager' : '/sales-manager';
   const tIdNum = Number(teacherId);
   const qc = useQueryClient();
 
@@ -811,7 +840,11 @@ const AdminTeacherStudentsPage = () => {
     if (s.callStatus === newStatus) return;
     const statusLabels: Record<string, string> = {
       WAITING: 'Kutilmoqda (WAITING)',
-      ACCEPTED: 'Qabul qilindi (ACCEPTED)',
+      CALLED: 'Aloqaga chiqildi (CALLED)',
+      REGISTERED: 'Kursga yozildi (REGISTERED)',
+      FIRST_LESSON: 'Birinchi dars (FIRST_LESSON)',
+      STARTED_STUDYING: 'Dars boshladi (STARTED_STUDYING)',
+      MADE_PAYMENT: "To'lov qildi (MADE_PAYMENT)",
       REJECTED: 'Rad etildi (REJECTED)',
     };
     const confirmed = await confirm({
@@ -848,19 +881,19 @@ const AdminTeacherStudentsPage = () => {
   };
 
   const handleTeacherStudentStudyStatus = async (s: Student) => {
-    const nextStatus = s.studyStatus === 'STUDYING' ? 'STOPPED' : 'STUDYING';
+    const nextStatus = s.studyStatus === 'ACTIVE' ? 'NOACTIVE' : 'ACTIVE';
     const confirmed = await confirm({
       title: "O'qish holatini o'zgartirish",
       message:
-        nextStatus === 'STOPPED'
-          ? `"${s.fullName}" o'qishni to'xtatgan deb belgilansinmi?`
-          : `"${s.fullName}" yana faol o'qimoqda deb belgilansinmi?`,
+        nextStatus === 'NOACTIVE'
+          ? `"${s.fullName}" faol emas deb belgilansinmi?`
+          : `"${s.fullName}" yana faol deb belgilansinmi?`,
       details: [
         { label: "O'quvchi", value: s.fullName },
-        { label: "Yangi holat", value: nextStatus === 'STUDYING' ? "O'qiyapti (Faol)" : "O'qish to'xtatildi (STOPPED)" },
+        { label: "Yangi holat", value: nextStatus === 'ACTIVE' ? "Faol (ACTIVE)" : "Faol emas (NOACTIVE)" },
       ],
       confirmText: "Ha, o'zgartirish",
-      variant: nextStatus === 'STOPPED' ? 'warning' : 'primary',
+      variant: nextStatus === 'NOACTIVE' ? 'warning' : 'primary',
     });
     if (!confirmed) return;
 
@@ -871,7 +904,7 @@ const AdminTeacherStudentsPage = () => {
           showToast({
             type: 'success',
             title: "O'qish holati yangilandi",
-            message: `"${s.fullName}" uchun o'qish holati "${nextStatus === 'STUDYING' ? 'O‘qiyapti' : 'To‘xtatildi'}" ga o'zgartirildi.`,
+            message: `"${s.fullName}" uchun o'qish holati "${nextStatus === 'ACTIVE' ? 'Faol' : 'Faol emas'}" ga o'zgartirildi.`,
           });
         },
         onError: () => {
@@ -895,8 +928,8 @@ const AdminTeacherStudentsPage = () => {
     return true;
   });
 
-  const studyingCount = students.filter((s) => s.studyStatus === 'STUDYING').length;
-  const stoppedCount = students.filter((s) => s.studyStatus === 'STOPPED').length;
+  const studyingCount = students.filter((s) => s.studyStatus === 'ACTIVE').length;
+  const stoppedCount = students.filter((s) => s.studyStatus === 'NOACTIVE').length;
   const waitingCount = students.filter((s) => s.callStatus === 'WAITING').length;
 
   if (teacherLoading) {
@@ -1030,8 +1063,8 @@ const AdminTeacherStudentsPage = () => {
               onChange={(e) => setStudyFilter(e.target.value)}
             >
               <option value="">O'qish holati: Barchasi</option>
-              <option value="STUDYING">O'qiyapti</option>
-              <option value="STOPPED">To'xtatgan</option>
+              <option value="ACTIVE">Faol</option>
+              <option value="NOACTIVE">Faol emas</option>
             </select>
             <select
               className="input text-xs py-1.5 px-2 w-auto"
@@ -1040,7 +1073,11 @@ const AdminTeacherStudentsPage = () => {
             >
               <option value="">Qo'ng'iroq: Barchasi</option>
               <option value="WAITING">Kutilmoqda</option>
-              <option value="ACCEPTED">Qabul qilindi</option>
+              <option value="CALLED">Aloqaga chiqildi</option>
+              <option value="REGISTERED">Kursga yozildi</option>
+              <option value="FIRST_LESSON">Birinchi dars</option>
+              <option value="STARTED_STUDYING">Dars boshladi</option>
+              <option value="MADE_PAYMENT">To'lov qildi</option>
               <option value="REJECTED">Rad etildi</option>
             </select>
           </div>
@@ -1064,7 +1101,15 @@ const AdminTeacherStudentsPage = () => {
               )}
               {filteredStudents.map((s) => (
                 <tr key={s.id} className="hover:bg-slate-50">
-                  <td className="font-semibold text-slate-900">{s.fullName}</td>
+                  <td className="font-semibold text-slate-900">
+                    <Link
+                      to={`${basePath}/students/${s.id}/payments`}
+                      className="hover:text-blue-900 hover:underline"
+                      title="To'lovlar tarixini ko'rish"
+                    >
+                      {s.fullName}
+                    </Link>
+                  </td>
                   <td className="font-mono text-xs text-blue-900 font-bold">{s.phone}</td>
                   <td>
                     <button
@@ -1124,6 +1169,8 @@ const AdminDashboard = () => (
     <Routes>
       <Route index element={<StudentsPage />} />
       <Route path="students" element={<StudentsPage />} />
+      <Route path="students/:studentId/payments" element={<StudentPaymentHistoryPage />} />
+      <Route path="first-payments" element={<FirstPaymentsPage />} />
       <Route path="teachers/:teacherId/students" element={<AdminTeacherStudentsPage />} />
       <Route path="teachers/:teacherId" element={<AdminTeacherStudentsPage />} />
       <Route path="commissions" element={<AdminCommissionsPage />} />

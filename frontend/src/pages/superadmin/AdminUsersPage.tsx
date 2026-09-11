@@ -6,11 +6,11 @@ import StatusBadge from '../../components/StatusBadge';
 import { getErrorMessage } from '../../lib/errors';
 import type { User } from './types';
 
-export const AdminsPage = () => {
+export const AdminUsersPage = () => {
   const qc = useQueryClient();
   const { data: admins = [] } = useQuery<User[]>({
-    queryKey: ['users', 'SALES_MANAGER'],
-    queryFn: () => api.get('/users?role=SALES_MANAGER').then((r) => r.data),
+    queryKey: ['users', 'ADMIN'],
+    queryFn: () => api.get('/users?role=ADMIN').then((r) => r.data),
   });
 
   const [form, setForm] = useState({ fullName: '', phone: '', password: '' });
@@ -18,20 +18,20 @@ export const AdminsPage = () => {
   const { confirm, showToast } = useFeedback();
 
   const mutation = useMutation({
-    mutationFn: (body: typeof form) => api.post('/users/sales-manager', body),
+    mutationFn: (body: typeof form) => api.post('/users/admin', body),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['users', 'SALES_MANAGER'] });
+      qc.invalidateQueries({ queryKey: ['users', 'ADMIN'] });
       setForm({ fullName: '', phone: '', password: '' });
-      setMsg("Sotuv menejeri muvaffaqiyatli qo'shildi!");
+      setMsg("Admin muvaffaqiyatli qo'shildi!");
       showToast({
         type: 'success',
-        title: "Sotuv menejeri qo'shildi",
-        message: "Yangi sotuv menejeri muvaffaqiyatli ro'yxatdan o'tkazildi!",
+        title: "Admin qo'shildi",
+        message: "Yangi admin muvaffaqiyatli ro'yxatdan o'tkazildi!",
       });
       setTimeout(() => setMsg(''), 3000);
     },
     onError: (err: unknown) => {
-      const errText = getErrorMessage(err, "Sotuv menejerini saqlashda xatolik yuz berdi.");
+      const errText = getErrorMessage(err, "Adminni saqlashda xatolik yuz berdi.");
       setMsg(`Xatolik: ${errText}`);
       showToast({
         type: 'error',
@@ -44,13 +44,13 @@ export const AdminsPage = () => {
   const handleAddAdmin = async (e: FormEvent) => {
     e.preventDefault();
     const confirmed = await confirm({
-      title: "Sotuv menejeri hisobini yaratishni tasdiqlaysizmi?",
-      message: "Ushbu foydalanuvchiga o'quvchilar, qo'ng'iroqlar va to'lovlarni nazorat qilish vakolati beriladi.",
+      title: "Admin hisobini yaratishni tasdiqlaysizmi?",
+      message: "Ushbu foydalanuvchi sotuv menejeri birinchi to'lovni qabul qilgan o'quvchilarning o'qish holati va keyingi to'lovlarini boshqaradi.",
       details: [
-        { label: "Sotuv menejeri F.I.SH", value: form.fullName },
+        { label: "Admin F.I.SH", value: form.fullName },
         { label: "Telefon raqam", value: form.phone },
       ],
-      confirmText: "Ha, sotuv menejerini qo'shish",
+      confirmText: "Ha, adminni qo'shish",
     });
     if (!confirmed) return;
 
@@ -60,19 +60,21 @@ export const AdminsPage = () => {
   return (
     <div className="space-y-6 max-w-4xl">
       <div>
-        <h1 className="page-title">Sotuv menejerlari boshqaruvi</h1>
-        <p className="text-sm text-slate-500 mt-0.5">O'quvchilar va to'lovlarni nazorat qiluvchi sotuv menejerlari</p>
+        <h1 className="page-title">Adminlar boshqaruvi</h1>
+        <p className="text-sm text-slate-500 mt-0.5">
+          Birinchi to'lovdan keyingi o'quvchilarning o'qish holati va to'lovlarini boshqaruvchi adminlar
+        </p>
       </div>
 
       <div className="card">
-        <h2 className="section-title mb-4">Yangi sotuv menejeri qo'shish</h2>
+        <h2 className="section-title mb-4">Yangi admin qo'shish</h2>
         <form onSubmit={handleAddAdmin} className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div>
             <label className="label">F.I.SH</label>
             <input
               type="text"
               className="input"
-              placeholder="Sotuv menejeri ismi"
+              placeholder="Admin ismi"
               value={form.fullName}
               onChange={(e) => setForm({ ...form, fullName: e.target.value })}
               required
@@ -104,14 +106,14 @@ export const AdminsPage = () => {
           {msg && <div className={`sm:col-span-3 ${msg.includes('Xatolik') ? 'notice-error' : 'notice-success'}`}>{msg}</div>}
           <div className="sm:col-span-3">
             <button type="submit" className="btn-primary" disabled={mutation.isPending}>
-              {mutation.isPending ? "Qo'shilmoqda…" : "Sotuv menejerini qo'shish"}
+              {mutation.isPending ? "Qo'shilmoqda…" : "Adminni qo'shish"}
             </button>
           </div>
         </form>
       </div>
 
       <div className="card">
-        <h2 className="section-title mb-4">Sotuv menejerlari ro'yxati ({admins.length})</h2>
+        <h2 className="section-title mb-4">Adminlar ro'yxati ({admins.length})</h2>
         <div className="table-wrapper">
           <table className="table">
             <thead>
@@ -131,7 +133,7 @@ export const AdminsPage = () => {
                   <td className="text-slate-500 text-xs">{new Date(a.createdAt).toLocaleDateString()}</td>
                 </tr>
               ))}
-              {admins.length === 0 && <tr><td colSpan={4} className="text-center py-6 text-slate-400">Sotuv menejerlari mavjud emas</td></tr>}
+              {admins.length === 0 && <tr><td colSpan={4} className="text-center py-6 text-slate-400">Adminlar mavjud emas</td></tr>}
             </tbody>
           </table>
         </div>

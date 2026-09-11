@@ -5,6 +5,7 @@ import { useAuth } from '../contexts/AuthContext';
 const ROLE_PATHS: Record<string, string> = {
   SUPER_ADMIN: '/superadmin',
   MANAGER: '/manager',
+  SALES_MANAGER: '/sales-manager',
   ADMIN: '/admin',
   DIRECTOR: '/director',
   TEACHER: '/teacher',

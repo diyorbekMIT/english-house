@@ -66,7 +66,7 @@ interface TeacherSummaryResponse {
 const TeacherOverviewDashboard = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const [filterStatus, setFilterStatus] = useState<'ALL' | 'STUDYING' | 'STOPPED' | 'WAITING'>('ALL');
+  const [filterStatus, setFilterStatus] = useState<'ALL' | 'ACTIVE' | 'NOACTIVE' | 'WAITING'>('ALL');
   const [searchTerm, setSearchTerm] = useState('');
 
   const { data, isLoading, refetch, isFetching } = useQuery<TeacherSummaryResponse>({
@@ -110,8 +110,8 @@ const TeacherOverviewDashboard = () => {
 
   // Filter students by tab & search
   const filteredStudents = allStudents.filter((s) => {
-    if (filterStatus === 'STUDYING' && s.studyStatus !== 'STUDYING') return false;
-    if (filterStatus === 'STOPPED' && s.studyStatus !== 'STOPPED') return false;
+    if (filterStatus === 'ACTIVE' && s.studyStatus !== 'ACTIVE') return false;
+    if (filterStatus === 'NOACTIVE' && s.studyStatus !== 'NOACTIVE') return false;
     if (filterStatus === 'WAITING' && s.callStatus !== 'WAITING') return false;
     if (searchTerm) {
       const q = searchTerm.toLowerCase();
@@ -305,9 +305,9 @@ const TeacherOverviewDashboard = () => {
             Barchasi ({allStudents.length})
           </button>
           <button
-            onClick={() => setFilterStatus('STUDYING')}
+            onClick={() => setFilterStatus('ACTIVE')}
             className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${
-              filterStatus === 'STUDYING'
+              filterStatus === 'ACTIVE'
                 ? 'bg-emerald-600 text-white shadow-xs'
                 : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800'
             }`}
@@ -315,9 +315,9 @@ const TeacherOverviewDashboard = () => {
             🟢 O'qiyotganlar ({summary.studyingStudents})
           </button>
           <button
-            onClick={() => setFilterStatus('STOPPED')}
+            onClick={() => setFilterStatus('NOACTIVE')}
             className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${
-              filterStatus === 'STOPPED'
+              filterStatus === 'NOACTIVE'
                 ? 'bg-rose-600 text-white shadow-xs'
                 : 'bg-rose-50 hover:bg-rose-100 text-rose-800'
             }`}
@@ -394,8 +394,8 @@ const TeacherStudentsPage = () => {
     queryFn: () => api.get('/students').then((r) => r.data),
   });
 
-  const studying = students.filter((s) => s.studyStatus === 'STUDYING').length;
-  const stopped = students.filter((s) => s.studyStatus === 'STOPPED').length;
+  const studying = students.filter((s) => s.studyStatus === 'ACTIVE').length;
+  const stopped = students.filter((s) => s.studyStatus === 'NOACTIVE').length;
 
   return (
     <div className="space-y-6 max-w-5xl">

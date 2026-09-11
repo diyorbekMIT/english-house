@@ -23,6 +23,7 @@ export interface ToastOptions {
 
 interface ToastItem extends ToastOptions {
   id: string;
+  durationMs: number;
 }
 
 interface FeedbackContextType {
@@ -207,80 +208,108 @@ export const FeedbackProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       )}
 
       {/* ── TOAST CONTAINER ───────────────────────────────────────────── */}
-      <div className="fixed top-4 right-4 z-[9999] flex flex-col gap-2.5 pointer-events-none max-w-sm w-full px-4 sm:px-0">
+      <div className="fixed inset-x-0 top-6 z-[9999] flex flex-col items-center gap-3 pointer-events-none px-4">
         {toasts.map((t) => (
           <div
             key={t.id}
-            className={`pointer-events-auto flex items-start gap-3 p-3.5 rounded-xl border bg-white shadow-lg shadow-slate-900/5 transition-all animate-in slide-in-from-top-2 fade-in duration-200 ${
+            className={`pointer-events-auto w-full max-w-sm bg-white rounded-2xl shadow-2xl shadow-slate-900/20 border-t-4 overflow-hidden transition-all animate-in zoom-in-95 fade-in duration-200 ${
               t.type === 'success'
-                ? 'border-emerald-200'
+                ? 'border-t-emerald-500'
                 : t.type === 'error'
-                ? 'border-rose-200'
+                ? 'border-t-rose-500'
                 : t.type === 'warning'
-                ? 'border-amber-200'
-                : 'border-blue-200'
+                ? 'border-t-amber-500'
+                : 'border-t-blue-500'
             }`}
           >
-            {/* Status icon badge */}
-            <div
-              className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 text-xs font-bold ${
-                t.type === 'success'
-                  ? 'bg-emerald-100 text-emerald-700'
-                  : t.type === 'error'
-                  ? 'bg-rose-100 text-rose-700'
-                  : t.type === 'warning'
-                  ? 'bg-amber-100 text-amber-700'
-                  : 'bg-blue-100 text-[#1E3A8A]'
-              }`}
-            >
-              {t.type === 'success' && (
+            <div className="flex items-start gap-3.5 p-5">
+              {/* Status icon badge */}
+              <div
+                className={`w-11 h-11 rounded-full flex items-center justify-center shrink-0 ${
+                  t.type === 'success'
+                    ? 'bg-emerald-100 text-emerald-700'
+                    : t.type === 'error'
+                    ? 'bg-rose-100 text-rose-700'
+                    : t.type === 'warning'
+                    ? 'bg-amber-100 text-amber-700'
+                    : 'bg-blue-100 text-[#1E3A8A]'
+                }`}
+              >
+                {t.type === 'success' && (
+                  <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                  </svg>
+                )}
+                {t.type === 'error' && (
+                  <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                )}
+                {t.type === 'warning' && (
+                  <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 9v2m0 4h.01" />
+                  </svg>
+                )}
+                {t.type === 'info' && (
+                  <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 16h-1v-4h-1m1-4h.01" />
+                  </svg>
+                )}
+              </div>
+
+              {/* Content */}
+              <div className="flex-1 pt-1">
+                <h4 className="text-sm sm:text-base font-bold text-slate-900 leading-tight">
+                  {t.title}
+                </h4>
+                {t.message && (
+                  <p className="text-xs sm:text-sm text-slate-600 mt-1 leading-relaxed">
+                    {t.message}
+                  </p>
+                )}
+              </div>
+
+              {/* Close button */}
+              <button
+                type="button"
+                onClick={() => removeToast(t.id)}
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-md transition-colors shrink-0"
+                aria-label="Yopish"
+              >
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
-              )}
-              {t.type === 'error' && (
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              )}
-              {t.type === 'warning' && (
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 9v2m0 4h.01" />
-                </svg>
-              )}
-              {t.type === 'info' && (
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 16h-1v-4h-1m1-4h.01" />
-                </svg>
-              )}
+              </button>
             </div>
 
-            {/* Content */}
-            <div className="flex-1 pt-0.5">
-              <h4 className="text-xs sm:text-sm font-bold text-slate-900 leading-tight">
-                {t.title}
-              </h4>
-              {t.message && (
-                <p className="text-[11px] sm:text-xs text-slate-600 mt-0.5 leading-snug">
-                  {t.message}
-                </p>
-              )}
-            </div>
-
-            {/* Close button */}
-            <button
-              type="button"
-              onClick={() => removeToast(t.id)}
-              className="text-slate-400 hover:text-slate-600 p-1 rounded-md transition-colors shrink-0"
-              aria-label="Yopish"
-            >
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
+            {/* Auto-dismiss progress bar */}
+            {t.durationMs > 0 && (
+              <div className="h-1 w-full bg-slate-100">
+                <div
+                  className={`h-full ${
+                    t.type === 'success'
+                      ? 'bg-emerald-500'
+                      : t.type === 'error'
+                      ? 'bg-rose-500'
+                      : t.type === 'warning'
+                      ? 'bg-amber-500'
+                      : 'bg-blue-500'
+                  }`}
+                  style={{
+                    animation: `toast-shrink ${t.durationMs}ms linear forwards`,
+                  }}
+                />
+              </div>
+            )}
           </div>
         ))}
       </div>
+      <style>{`
+        @keyframes toast-shrink {
+          from { width: 100%; }
+          to { width: 0%; }
+        }
+      `}</style>
     </FeedbackContext.Provider>
   );
 };
