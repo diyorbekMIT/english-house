@@ -3,6 +3,7 @@ import { useState, type FormEvent } from 'react';
 import { api } from '../../lib/api';
 import { useFeedback } from '../../contexts/FeedbackContext';
 import StatusBadge from '../../components/StatusBadge';
+import { getErrorMessage } from '../../lib/errors';
 import type { School, User } from './types';
 
 export const DirectorsPage = () => {
@@ -41,8 +42,7 @@ export const DirectorsPage = () => {
       setTimeout(() => setMsg(''), 3000);
     },
     onError: (err: unknown) => {
-      const axiosErr = err as { response?: { data?: { error?: string } } };
-      const errText = axiosErr.response?.data?.error || 'Telefon raqam takrorlanmasligi kerak.';
+      const errText = getErrorMessage(err, "Direktorni saqlashda xatolik yuz berdi.");
       setMsg(`Xatolik: ${errText}`);
       showToast({
         type: 'error',

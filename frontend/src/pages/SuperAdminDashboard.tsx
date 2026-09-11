@@ -8,6 +8,7 @@ import { StudentsDashboard } from './superadmin/StudentsDashboard';
 import { DirectorsPage } from './superadmin/DirectorsPage';
 import { AdminsPage } from './superadmin/AdminsPage';
 import { CommissionRulesPage } from './superadmin/CommissionRulesPage';
+import { PayoutsPage } from './superadmin/PayoutsPage';
 import { CeoAuditLogsPage } from './superadmin/CeoAuditLogsPage';
 
 export const SuperAdminDashboard = () => (
@@ -23,6 +24,7 @@ export const SuperAdminDashboard = () => (
       <Route path="directors" element={<DirectorsPage />} />
       <Route path="admins" element={<AdminsPage />} />
       <Route path="rules" element={<CommissionRulesPage />} />
+      <Route path="payouts" element={<PayoutsPage />} />
       <Route path="audit" element={<CeoAuditLogsPage />} />
     </Routes>
   </Layout>

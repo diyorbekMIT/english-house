@@ -11,6 +11,10 @@ import {
   type DailyStudentItem,
 } from '../components/Charts';
 import CommissionCreditCard from '../components/CommissionCreditCard';
+import PayoutHistoryList from '../components/PayoutHistoryList';
+import { useAuth } from '../contexts/AuthContext';
+import { getErrorMessage } from '../lib/errors';
+import type { Payout } from './superadmin/types';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 interface Student {
@@ -51,6 +55,8 @@ interface TeacherSummaryResponse {
     totalCommissionUzs: number;
     paidCommissionUzs: number;
     pendingCommissionUzs: number;
+    payoutsNetUzs: number;
+    balanceUzs: number;
   };
   dailyTrends: DailyStudentItem[];
   students: Student[];
@@ -59,12 +65,18 @@ interface TeacherSummaryResponse {
 // ── 1. TEACHER OVERVIEW DASHBOARD WITH CHARTS ──────────────────────────────────
 const TeacherOverviewDashboard = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [filterStatus, setFilterStatus] = useState<'ALL' | 'STUDYING' | 'STOPPED' | 'WAITING'>('ALL');
   const [searchTerm, setSearchTerm] = useState('');
 
   const { data, isLoading, refetch, isFetching } = useQuery<TeacherSummaryResponse>({
     queryKey: ['teacher-summary'],
     queryFn: () => api.get('/analytics/teacher-summary').then((r) => r.data),
+  });
+
+  const { data: payouts = [] } = useQuery<Payout[]>({
+    queryKey: ['payouts'],
+    queryFn: () => api.get('/payouts').then((r) => r.data),
   });
 
   if (isLoading) {
@@ -89,6 +101,8 @@ const TeacherOverviewDashboard = () => {
     totalCommissionUzs: 0,
     paidCommissionUzs: 0,
     pendingCommissionUzs: 0,
+    payoutsNetUzs: 0,
+    balanceUzs: 0,
   };
 
   const dailyTrends = data?.dailyTrends ?? [];
@@ -238,9 +252,9 @@ const TeacherOverviewDashboard = () => {
     <CommissionCreditCard
       schoolName={summary.school ? `№ ${summary.school.schoolNumber} — ${summary.school.name}` : undefined}
       subject={summary.subject}
-      holderName="O'qituvchi" // TODO: подставьте реальное имя из auth/user context
-      totalUzs={summary.totalCommissionUzs}
-      paidUzs={summary.paidCommissionUzs}
+      holderName={user?.fullName ?? "O'qituvchi"}
+      totalUzs={summary.balanceUzs}
+      paidUzs={summary.paidCommissionUzs + summary.payoutsNetUzs}
       pendingUzs={summary.pendingCommissionUzs}
     />
     <div className="card p-4 text-center">
@@ -250,6 +264,12 @@ const TeacherOverviewDashboard = () => {
     </div>
   </div>
 </div>
+
+      {/* Payout history (initial bonus + CEO adjustments) */}
+      <div className="card space-y-3">
+        <h2 className="section-title">To'lovlar tarixi</h2>
+        <PayoutHistoryList payouts={payouts} />
+      </div>
 
       {/* Students Status Table */}
       <div className="card space-y-4">
@@ -480,11 +500,7 @@ const NewStudentPage = () => {
       navigate('/teacher/students');
     },
     onError: (err: unknown) => {
-      const axiosErr = err as { response?: { data?: { error?: string } }; message?: string };
-      const serverMsg =
-        axiosErr.response?.data?.error ||
-        axiosErr.message ||
-        "Xatolik yuz berdi. Ma'lumotlarni qayta tekshiring.";
+      const serverMsg = getErrorMessage(err, "Xatolik yuz berdi. Ma'lumotlarni qayta tekshiring.");
       setMsg(serverMsg);
       showToast({
         type: 'error',
@@ -616,20 +632,29 @@ const NewStudentPage = () => {
 
 // ── 4. COMMISSIONS PAGE ────────────────────────────────────────────────────────
 const TeacherCommissionsPage = () => {
+  const { user } = useAuth();
   const { data: commissions = [] } = useQuery<Commission[]>({
     queryKey: ['commissions'],
     queryFn: () => api.get('/commissions').then((r) => r.data),
   });
+  const { data: payouts = [] } = useQuery<Payout[]>({
+    queryKey: ['payouts'],
+    queryFn: () => api.get('/payouts').then((r) => r.data),
+  });
 
   const pending = commissions.filter((c) => c.status !== 'PAID').reduce((acc, c) => acc + c.amountUzs, 0);
-  const paid = commissions.filter((c) => c.status === 'PAID').reduce((acc, c) => acc + c.amountUzs, 0);
+  const paidCommission = commissions.filter((c) => c.status === 'PAID').reduce((acc, c) => acc + c.amountUzs, 0);
+  const payoutsNet = payouts
+    .filter((p) => p.status === 'COMPLETED')
+    .reduce((acc, p) => acc + (p.type === 'DEBIT' ? -p.amountUzs : p.amountUzs), 0);
+  const paid = paidCommission + payoutsNet;
 
   return (
     <div className="space-y-6 max-w-5xl">
-    
+
       <div className="flex flex-col lg:flex-row items-center gap-6">
   <CommissionCreditCard
-    holderName="O'qituvchi"
+    holderName={user?.fullName ?? "O'qituvchi"}
     totalUzs={paid + pending}
     paidUzs={paid}
     pendingUzs={pending}
@@ -645,6 +670,11 @@ const TeacherCommissionsPage = () => {
     </div>
   </div>
 </div>
+
+      <div className="card space-y-3">
+        <h2 className="section-title">To'lovlar tarixi</h2>
+        <PayoutHistoryList payouts={payouts} />
+      </div>
     </div>
   );
 };

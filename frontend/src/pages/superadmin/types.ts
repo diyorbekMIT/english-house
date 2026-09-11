@@ -140,4 +140,31 @@ export interface CommissionRules {
   directorMonthlyPercent: number;
 }
 
+export interface Payout {
+  id: number;
+  makerId: number | null;
+  receiverId: number;
+  amountUzs: number;
+  type: 'INITIAL_BONUS' | 'CREDIT' | 'DEBIT';
+  status: 'PENDING' | 'COMPLETED' | 'CANCELLED';
+  comments?: string | null;
+  completedAt?: string | null;
+  createdAt: string;
+}
+
+export interface UserBalance {
+  commissionTotalUzs: number;
+  commissionPaidUzs: number;
+  commissionPendingUzs: number;
+  payoutsNetUzs: number;
+  balanceUzs: number;
+}
+
+export interface PayoutBalanceRow extends UserBalance {
+  userId: number;
+  fullName: string;
+  phone: string;
+  role: 'DIRECTOR' | 'TEACHER';
+}
+
 export const formatDateInput = (d: Date): string => d.toLocaleDateString('sv');

@@ -43,6 +43,7 @@ const ROLE_NAV: Record<string, NavItem[]> = {
     { label: "O'quvchilar", to: '/superadmin/students', icon: <IconStudents /> },
     { label: 'Direktorlar', to: '/superadmin/directors', icon: <IconUsers /> },
     { label: 'Adminlar', to: '/superadmin/admins', icon: <IconUsers /> },
+    { label: "To'lovlar", to: '/superadmin/payouts', icon: <IconMoney /> },
     { label: 'Komissiya qoidalari', to: '/superadmin/rules', icon: <IconSettings /> },
     { label: 'Audit jurnali (CEO)', to: '/superadmin/audit', icon: <IconLog /> },
   ],

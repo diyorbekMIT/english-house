@@ -11,6 +11,10 @@ import {
   type DailyStudentItem,
 } from '../components/Charts';
 import CommissionCreditCard from '../components/CommissionCreditCard';
+import PayoutHistoryList from '../components/PayoutHistoryList';
+import { useAuth } from '../contexts/AuthContext';
+import { getErrorMessage } from '../lib/errors';
+import type { Payout } from './superadmin/types';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 interface User {
@@ -74,6 +78,8 @@ interface DirectorSummaryResponse {
     totalCommissionUzs: number;
     paidCommissionUzs: number;
     pendingCommissionUzs: number;
+    payoutsNetUzs: number;
+    balanceUzs: number;
   };
   dailyTrends: DailyStudentItem[];
   teachersPerformance: TeacherPerformance[];
@@ -83,6 +89,7 @@ interface DirectorSummaryResponse {
 // ── 1. DIRECTOR OVERVIEW DASHBOARD WITH CHARTS & TEACHER DRILL-DOWN ───────────
 const DirectorOverviewDashboard = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [selectedTeacherId, setSelectedTeacherId] = useState<number | null>(null);
   const [teacherFilterStatus, setTeacherFilterStatus] = useState<'ALL' | 'STUDYING' | 'STOPPED'>('ALL');
   const [searchTeacherTerm, setSearchTeacherTerm] = useState('');
@@ -90,6 +97,11 @@ const DirectorOverviewDashboard = () => {
   const { data, isLoading, refetch, isFetching } = useQuery<DirectorSummaryResponse>({
     queryKey: ['director-summary'],
     queryFn: () => api.get('/analytics/director-summary').then((r) => r.data),
+  });
+
+  const { data: payouts = [] } = useQuery<Payout[]>({
+    queryKey: ['payouts'],
+    queryFn: () => api.get('/payouts').then((r) => r.data),
   });
 
   if (isLoading) {
@@ -114,6 +126,8 @@ const DirectorOverviewDashboard = () => {
     totalCommissionUzs: 0,
     paidCommissionUzs: 0,
     pendingCommissionUzs: 0,
+    payoutsNetUzs: 0,
+    balanceUzs: 0,
   };
 
   const dailyTrends = data?.dailyTrends ?? [];
@@ -266,9 +280,9 @@ const DirectorOverviewDashboard = () => {
     <CommissionCreditCard
       schoolName={summary.school ? `№ ${summary.school.schoolNumber} — ${summary.school.name}` : undefined}
       subject="Maktab balansi"
-      holderName="Direktor"
-      totalUzs={summary.totalCommissionUzs}
-      paidUzs={summary.paidCommissionUzs}
+      holderName={user?.fullName ?? 'Direktor'}
+      totalUzs={summary.balanceUzs}
+      paidUzs={summary.paidCommissionUzs + summary.payoutsNetUzs}
       pendingUzs={summary.pendingCommissionUzs}
     />
     <div className="card p-4 text-center">
@@ -278,6 +292,12 @@ const DirectorOverviewDashboard = () => {
     </div>
   </div>
 </div>
+
+      {/* Payout history (initial bonus + CEO adjustments) */}
+      <div className="card space-y-3">
+        <h2 className="section-title">To'lovlar tarixi</h2>
+        <PayoutHistoryList payouts={payouts} />
+      </div>
 
       {/* Teachers Performance Table with Interactive Drill-down */}
       <div className="card space-y-4">
@@ -524,8 +544,7 @@ const TeachersPage = () => {
       setTimeout(() => setMsg(''), 3000);
     },
     onError: (err: unknown) => {
-      const axiosErr = err as { response?: { data?: { error?: string } } };
-      const errText = axiosErr.response?.data?.error || 'Telefon raqam takrorlanmasligi kerak.';
+      const errText = getErrorMessage(err, "O'qituvchini saqlashda xatolik yuz berdi.");
       setMsg(`Xatolik: ${errText}`);
       showToast({
         type: 'error',
@@ -1086,14 +1105,24 @@ const DirectorStudentsPage = () => {
 
 // ── 4. COMMISSIONS PAGE ────────────────────────────────────────────────────────
 const DirectorCommissionsPage = () => {
+  const { user } = useAuth();
   const { data: commissions = [] } = useQuery<Commission[]>({
     queryKey: ['commissions'],
     queryFn: () => api.get('/commissions').then((r) => r.data),
   });
+  const { data: payouts = [] } = useQuery<Payout[]>({
+    queryKey: ['payouts'],
+    queryFn: () => api.get('/payouts').then((r) => r.data),
+  });
 
-  const total = commissions.reduce((acc, c) => acc + c.amountUzs, 0);
-  const paid = commissions.filter((c) => c.status === 'PAID').reduce((acc, c) => acc + c.amountUzs, 0);
+  const commissionTotal = commissions.reduce((acc, c) => acc + c.amountUzs, 0);
+  const paidCommission = commissions.filter((c) => c.status === 'PAID').reduce((acc, c) => acc + c.amountUzs, 0);
   const pending = commissions.filter((c) => c.status !== 'PAID').reduce((acc, c) => acc + c.amountUzs, 0);
+  const payoutsNet = payouts
+    .filter((p) => p.status === 'COMPLETED')
+    .reduce((acc, p) => acc + (p.type === 'DEBIT' ? -p.amountUzs : p.amountUzs), 0);
+  const paid = paidCommission + payoutsNet;
+  const total = commissionTotal + payoutsNet;
 
   return (
     <div className="space-y-6 max-w-5xl">
@@ -1107,7 +1136,7 @@ const DirectorCommissionsPage = () => {
       <div className="flex flex-col lg:flex-row items-center gap-6">
   <CommissionCreditCard
     schoolName="Maktab komissiya balansi"
-    holderName="Direktor"
+    holderName={user?.fullName ?? 'Direktor'}
     totalUzs={total}
     paidUzs={paid}
     pendingUzs={pending}
@@ -1154,6 +1183,11 @@ const DirectorCommissionsPage = () => {
             </tbody>
           </table>
         </div>
+      </div>
+
+      <div className="card space-y-3">
+        <h2 className="section-title">To'lovlar tarixi</h2>
+        <PayoutHistoryList payouts={payouts} />
       </div>
     </div>
   );
