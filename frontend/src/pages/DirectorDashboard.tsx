@@ -42,14 +42,6 @@ interface Student {
   createdAt: string;
 }
 
-interface Commission {
-  id: number;
-  amountUzs: number;
-  type: string;
-  status: string;
-  createdAt: string;
-}
-
 interface TeacherPerformance {
   id: number;
   fullName: string;
@@ -1110,7 +1102,7 @@ const DirectorStudentsPage = () => {
 // ── 4. COMMISSIONS PAGE ────────────────────────────────────────────────────────
 const DirectorCommissionsPage = () => {
   const { user } = useAuth();
-  const { data: commissions = [] } = useQuery<Commission[]>({
+  const { data: commissions = [] } = useQuery<{ id: number; amountUzs: number; type: string; status: string; createdAt: string }[]>({
     queryKey: ['commissions'],
     queryFn: () => api.get('/commissions').then((r) => r.data),
   });
@@ -1118,15 +1110,22 @@ const DirectorCommissionsPage = () => {
     queryKey: ['payouts'],
     queryFn: () => api.get('/payouts').then((r) => r.data),
   });
+  // Balance is computed server-side (accounts for any withdrawn/claimed amounts,
+  // which no longer count as pending) rather than re-derived from raw commissions here.
+  const { data: balance } = useQuery<{
+    commissionPaidUzs: number;
+    commissionPendingUzs: number;
+    payoutsNetUzs: number;
+    balanceUzs: number;
+  }>({
+    queryKey: ['payouts', 'balance', user?.userId],
+    queryFn: () => api.get(`/payouts/balance/${user!.userId}`).then((r) => r.data),
+    enabled: !!user?.userId,
+  });
 
-  const commissionTotal = commissions.reduce((acc, c) => acc + c.amountUzs, 0);
-  const paidCommission = commissions.filter((c) => c.status === 'PAID').reduce((acc, c) => acc + c.amountUzs, 0);
-  const pending = commissions.filter((c) => c.status !== 'PAID').reduce((acc, c) => acc + c.amountUzs, 0);
-  const payoutsNet = payouts
-    .filter((p) => p.status === 'COMPLETED')
-    .reduce((acc, p) => acc + (p.type === 'DEBIT' ? -p.amountUzs : p.amountUzs), 0);
-  const paid = paidCommission + payoutsNet;
-  const total = commissionTotal + payoutsNet;
+  const pending = balance?.commissionPendingUzs ?? 0;
+  const paid = (balance?.commissionPaidUzs ?? 0) + (balance?.payoutsNetUzs ?? 0);
+  const total = balance?.balanceUzs ?? 0;
 
   return (
     <div className="space-y-6 max-w-5xl">

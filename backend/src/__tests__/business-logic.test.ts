@@ -124,6 +124,38 @@ describe('Balance Calculation', () => {
     expect(balance.payoutsNetUzs).toBe(-3_000_000);
     expect(balance.balanceUzs).toBe(7_000_000);
   });
+
+  it('a verified/given withdraw claim drops out of pending and the total balance entirely', () => {
+    const balance = computeBalance(
+      [{ amountUzs: 210_000, status: 'PENDING' }],
+      [],
+      210_000, // fully claimed via a withdraw request
+    );
+
+    expect(balance.commissionPendingUzs).toBe(0);
+    expect(balance.balanceUzs).toBe(0);
+  });
+
+  it('a partial withdraw claim only reduces pending by the claimed amount', () => {
+    const balance = computeBalance(
+      [{ amountUzs: 700_000, status: 'PENDING' }],
+      [],
+      600_000,
+    );
+
+    expect(balance.commissionPendingUzs).toBe(100_000);
+    expect(balance.balanceUzs).toBe(100_000);
+  });
+
+  it('never lets a claim push pending balance negative', () => {
+    const balance = computeBalance(
+      [{ amountUzs: 100_000, status: 'PENDING' }],
+      [],
+      999_000, // stale/over-claimed edge case
+    );
+
+    expect(balance.commissionPendingUzs).toBe(0);
+  });
 });
 
 describe('Withdraw Eligibility', () => {

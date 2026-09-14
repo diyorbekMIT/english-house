@@ -430,19 +430,10 @@ analyticsRouter.get('/director-summary', requireRole('DIRECTOR'), asyncHandler(a
         .orderBy(desc(students.createdAt))
     : [];
 
-  // 4. Fetch director commissions
-  const dirCommissions = await db
-    .select()
-    .from(commissions)
-    .where(eq(commissions.userId, user.userId));
-
-  const totalCommissionUzs = dirCommissions.reduce((s, c) => s + c.amountUzs, 0);
-  const paidCommissionUzs = dirCommissions
-    .filter((c) => c.status === 'PAID')
-    .reduce((s, c) => s + c.amountUzs, 0);
-  const pendingCommissionUzs = totalCommissionUzs - paidCommissionUzs;
-
-  const { payoutsNetUzs, balanceUzs } = await getUserBalance(db, user.userId);
+  // 4. Director's commission balance — accounts for any withdrawn (VERIFIED/GIVEN)
+  // amounts, which no longer count as pending.
+  const { commissionTotalUzs: totalCommissionUzs, commissionPaidUzs: paidCommissionUzs, commissionPendingUzs: pendingCommissionUzs, payoutsNetUzs, balanceUzs } =
+    await getUserBalance(db, user.userId);
 
   // 5. Aggregate metrics
   const totalStudents = schoolStudents.length;
@@ -548,19 +539,10 @@ analyticsRouter.get('/teacher-summary', requireRole('TEACHER'), asyncHandler(asy
     .where(eq(students.teacherId, user.userId))
     .orderBy(desc(students.createdAt));
 
-  // 3. Fetch teacher commissions
-  const teacherCommissions = await db
-    .select()
-    .from(commissions)
-    .where(eq(commissions.userId, user.userId));
-
-  const totalCommissionUzs = teacherCommissions.reduce((s, c) => s + c.amountUzs, 0);
-  const paidCommissionUzs = teacherCommissions
-    .filter((c) => c.status === 'PAID')
-    .reduce((s, c) => s + c.amountUzs, 0);
-  const pendingCommissionUzs = totalCommissionUzs - paidCommissionUzs;
-
-  const { payoutsNetUzs, balanceUzs } = await getUserBalance(db, user.userId);
+  // 3. Teacher's commission balance — accounts for any withdrawn (VERIFIED/GIVEN)
+  // amounts, which no longer count as pending.
+  const { commissionTotalUzs: totalCommissionUzs, commissionPaidUzs: paidCommissionUzs, commissionPendingUzs: pendingCommissionUzs, payoutsNetUzs, balanceUzs } =
+    await getUserBalance(db, user.userId);
 
   // 4. Metrics
   const totalStudents = myStudents.length;

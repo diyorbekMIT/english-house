@@ -1,6 +1,6 @@
-import { eq } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import type { Db } from '../../db/client.js';
-import { commissions, payouts } from '../../db/schema.js';
+import { commissions, payouts, withdrawRequests } from '../../db/schema.js';
 
 export interface UserBalance {
   commissionTotalUzs: number;
@@ -22,16 +22,21 @@ interface PayoutLike {
 }
 
 // Pure aggregation, kept separate from the DB fetch below so it can be unit-tested
-// without a database connection.
+// without a database connection. claimedWithdrawUzs is the sum of any VERIFIED/GIVEN
+// withdraw requests — that money has been claimed and handed over outside the
+// commissions ledger (tracked separately in withdraw history), so it stops counting
+// as pending, and drops out of the balance entirely rather than moving to "paid".
 export const computeBalance = (
   userCommissions: CommissionLike[],
   userPayouts: PayoutLike[],
+  claimedWithdrawUzs = 0,
 ): UserBalance => {
   const commissionTotalUzs = userCommissions.reduce((sum, c) => sum + c.amountUzs, 0);
   const commissionPaidUzs = userCommissions
     .filter((c) => c.status === 'PAID')
     .reduce((sum, c) => sum + c.amountUzs, 0);
-  const commissionPendingUzs = commissionTotalUzs - commissionPaidUzs;
+  const commissionPendingRawUzs = commissionTotalUzs - commissionPaidUzs;
+  const commissionPendingUzs = Math.max(0, commissionPendingRawUzs - claimedWithdrawUzs);
 
   const payoutsNetUzs = userPayouts
     .filter((p) => p.status === 'COMPLETED')
@@ -42,7 +47,7 @@ export const computeBalance = (
     commissionPaidUzs,
     commissionPendingUzs,
     payoutsNetUzs,
-    balanceUzs: commissionTotalUzs + payoutsNetUzs,
+    balanceUzs: commissionPaidUzs + commissionPendingUzs + payoutsNetUzs,
   };
 };
 
@@ -50,5 +55,12 @@ export const getUserBalance = async (db: Db, userId: number): Promise<UserBalanc
   const userCommissions = await db.select().from(commissions).where(eq(commissions.userId, userId));
   const userPayouts = await db.select().from(payouts).where(eq(payouts.receiverId, userId));
 
-  return computeBalance(userCommissions, userPayouts);
+  const claimedStatuses: ('VERIFIED' | 'GIVEN')[] = ['VERIFIED', 'GIVEN'];
+  const claimedRows = await db
+    .select({ amountUzs: withdrawRequests.amountUzs })
+    .from(withdrawRequests)
+    .where(and(eq(withdrawRequests.userId, userId), inArray(withdrawRequests.status, claimedStatuses)));
+  const claimedWithdrawUzs = claimedRows.reduce((sum, r) => sum + r.amountUzs, 0);
+
+  return computeBalance(userCommissions, userPayouts, claimedWithdrawUzs);
 };
