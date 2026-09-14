@@ -193,9 +193,10 @@ export const CommissionRulesPage = () => {
                 <input
                   type="number"
                   className="input"
+                  min={0}
                   placeholder={String(rules?.teacherFirstPaymentPercent ?? 2000)}
                   value={form.teacherFirstPaymentPercent}
-                  onChange={(e) => setForm((p) => ({ ...p, teacherFirstPaymentPercent: e.target.value }))}
+                  onChange={(e) => setForm((p) => ({ ...p, teacherFirstPaymentPercent: e.target.value.replace('-', '') }))}
                 />
               </div>
               <div>
@@ -203,9 +204,10 @@ export const CommissionRulesPage = () => {
                 <input
                   type="number"
                   className="input"
+                  min={0}
                   placeholder={String(rules?.directorFirstPaymentPercent ?? 1000)}
                   value={form.directorFirstPaymentPercent}
-                  onChange={(e) => setForm((p) => ({ ...p, directorFirstPaymentPercent: e.target.value }))}
+                  onChange={(e) => setForm((p) => ({ ...p, directorFirstPaymentPercent: e.target.value.replace('-', '') }))}
                 />
               </div>
             </div>
@@ -219,9 +221,10 @@ export const CommissionRulesPage = () => {
                 <input
                   type="number"
                   className="input"
+                  min={0}
                   placeholder={String(rules?.teacherMonthlyPercent ?? 1000)}
                   value={form.teacherMonthlyPercent}
-                  onChange={(e) => setForm((p) => ({ ...p, teacherMonthlyPercent: e.target.value }))}
+                  onChange={(e) => setForm((p) => ({ ...p, teacherMonthlyPercent: e.target.value.replace('-', '') }))}
                 />
               </div>
               <div>
@@ -229,9 +232,10 @@ export const CommissionRulesPage = () => {
                 <input
                   type="number"
                   className="input"
+                  min={0}
                   placeholder={String(rules?.directorMonthlyPercent ?? 500)}
                   value={form.directorMonthlyPercent}
-                  onChange={(e) => setForm((p) => ({ ...p, directorMonthlyPercent: e.target.value }))}
+                  onChange={(e) => setForm((p) => ({ ...p, directorMonthlyPercent: e.target.value.replace('-', '') }))}
                 />
               </div>
             </div>

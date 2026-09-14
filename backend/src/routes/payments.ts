@@ -67,6 +67,16 @@ paymentsRouter.post(
       .orderBy(desc(commissionRules.id))
       .limit(1);
 
+    // A single payment can't exceed the CEO-set special price — that price is meant
+    // to represent the course's real value, so a larger payment would signal a data
+    // entry error rather than a legitimate transaction. Skipped while unset (0).
+    if (rules && rules.specialPriceUzs > 0 && parsed.data.amountUzs > rules.specialPriceUzs) {
+      res.status(400).json({
+        error: `To'lov summasi maxsus narxdan (${rules.specialPriceUzs} UZS) oshmasligi kerak.`,
+      });
+      return;
+    }
+
     // Create payment record
     const [payment] = await db
       .insert(monthlyPayments)

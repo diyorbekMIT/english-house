@@ -10,6 +10,7 @@ import StudentPaymentHistoryPage from './StudentPaymentHistoryPage';
 import FirstPaymentsPage from './FirstPaymentsPage';
 import { formatUzs } from '../lib/format';
 import { AmountInput } from '../components/AmountInput';
+import { getErrorMessage } from '../lib/errors';
 
 interface Student {
   id: number;
@@ -59,6 +60,11 @@ const PaymentModal = ({ student, onClose }: { student: Student; onClose: () => v
   const [error, setError] = useState('');
   const { confirm, showToast } = useFeedback();
 
+  const { data: rules } = useQuery<{ specialPriceUzs: number } | null>({
+    queryKey: ['commission-rules'],
+    queryFn: () => api.get('/commission-rules').then((r) => r.data),
+  });
+
   const mutation = useMutation({
     mutationFn: (body: {
       amountUzs: number;
@@ -77,13 +83,10 @@ const PaymentModal = ({ student, onClose }: { student: Student; onClose: () => v
       });
       onClose();
     },
-    onError: () => {
-      setError('To‘lovni saqlashda xatolik yuz berdi');
-      showToast({
-        type: 'error',
-        title: 'Xatolik',
-        message: 'To‘lovni saqlashda xatolik yuz berdi.',
-      });
+    onError: (err: unknown) => {
+      const errText = getErrorMessage(err, 'To‘lovni saqlashda xatolik yuz berdi.');
+      setError(errText);
+      showToast({ type: 'error', title: 'Xatolik', message: errText });
     },
   });
 
@@ -91,6 +94,10 @@ const PaymentModal = ({ student, onClose }: { student: Student; onClose: () => v
     const numAmount = Number(amount);
     if (!amount || isNaN(numAmount) || numAmount <= 0) {
       setError('To‘lov summasini to‘g‘ri kiriting');
+      return;
+    }
+    if (rules && rules.specialPriceUzs > 0 && numAmount > rules.specialPriceUzs) {
+      setError(`To'lov summasi maxsus narxdan (${formatUzs(rules.specialPriceUzs)} UZS) oshmasligi kerak.`);
       return;
     }
 
