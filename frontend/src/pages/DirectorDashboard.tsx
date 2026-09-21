@@ -1144,15 +1144,7 @@ const DirectorCommissionsPage = () => {
     paidUzs={paid}
     pendingUzs={pending}
   />
-  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 flex-1 w-full">
-    <div className="stat-card">
-      <p className="text-xs font-semibold text-slate-500 uppercase">Jami hisoblangan</p>
-      <p className="text-2xl font-bold text-slate-900">{formatUzs(total)} UZS</p>
-    </div>
-    <div className="stat-card">
-      <p className="text-xs font-semibold text-slate-500 uppercase">To'langan</p>
-      <p className="text-2xl font-bold text-emerald-600">{formatUzs(paid)} UZS</p>
-    </div>
+  <div className="grid grid-cols-1 gap-4 flex-1 w-full">
     <div className="stat-card">
       <p className="text-xs font-semibold text-slate-500 uppercase">Kutilayotgan</p>
       <p className="text-2xl font-bold text-amber-600">{formatUzs(pending)} UZS</p>
