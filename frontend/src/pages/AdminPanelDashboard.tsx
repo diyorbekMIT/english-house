@@ -37,11 +37,6 @@ const PaymentModal = ({ student, onClose }: { student: Student; onClose: () => v
   const [error, setError] = useState('');
   const { confirm, showToast } = useFeedback();
 
-  const { data: rules } = useQuery<{ specialPriceUzs: number } | null>({
-    queryKey: ['commission-rules'],
-    queryFn: () => api.get('/commission-rules').then((r) => r.data),
-  });
-
   const mutation = useMutation({
     mutationFn: (body: { amountUzs: number; paidForMonth: string; paymentMethod?: string; notes?: string }) =>
       api.post(`/students/${student.id}/monthly-payments`, body),
@@ -65,10 +60,6 @@ const PaymentModal = ({ student, onClose }: { student: Student; onClose: () => v
     const numAmount = Number(amount);
     if (!amount || isNaN(numAmount) || numAmount <= 0) {
       setError("To'lov summasini to'g'ri kiriting");
-      return;
-    }
-    if (rules && rules.specialPriceUzs > 0 && numAmount > rules.specialPriceUzs) {
-      setError(`To'lov summasi maxsus narxdan (${formatUzs(rules.specialPriceUzs)} UZS) oshmasligi kerak.`);
       return;
     }
     const confirmed = await confirm({

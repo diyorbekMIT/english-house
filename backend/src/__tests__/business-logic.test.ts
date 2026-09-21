@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { normalizePhone, deriveStudyStatusOnCallStatusChange } from '../routes/students.js';
 import { isEligibleForBonus, selectCommissionBaseUzs } from '../routes/payments.js';
 import { computeBalance } from '../lib/balance.js';
-import { computeWithdrawEligibility } from '../lib/withdraw.js';
+import { computeWithdrawEligibility, computeUserWithdrawEligibility } from '../lib/withdraw.js';
 
 describe('Phone Normalization', () => {
   it('normalizes 9-digit Uzbek phone number', () => {
@@ -196,5 +196,72 @@ describe('Withdraw Eligibility', () => {
     const eligibility = computeWithdrawEligibility(10_000_000, 0, 0);
     expect(eligibility.withdrawableUzs).toBe(0);
     expect(eligibility.neededUzs).toBe(0);
+  });
+});
+
+describe('Withdraw Eligibility (balance + requests together)', () => {
+  const pending = (amountUzs: number) => ({ amountUzs, status: 'PENDING' });
+  const LIMIT = 300_000;
+
+  it('a GIVEN payout is not subtracted twice from what can be withdrawn next', () => {
+    // 1,747,500 earned, 1,000,000 already handed over -> 747,500 left, so 600,000 (2x limit) is withdrawable
+    const e = computeUserWithdrawEligibility(
+      [pending(1_747_500)],
+      [],
+      [{ amountUzs: 1_000_000, status: 'GIVEN' }],
+      LIMIT,
+    );
+    expect(e.availableUzs).toBe(747_500);
+    expect(e.withdrawableUzs).toBe(600_000);
+  });
+
+  it('VERIFIED behaves the same as GIVEN', () => {
+    const e = computeUserWithdrawEligibility(
+      [pending(1_000_000)],
+      [],
+      [{ amountUzs: 600_000, status: 'VERIFIED' }],
+      LIMIT,
+    );
+    expect(e.availableUzs).toBe(400_000);
+    expect(e.withdrawableUzs).toBe(300_000);
+  });
+
+  it('an open PENDING request reserves its amount so it cannot be requested twice', () => {
+    const e = computeUserWithdrawEligibility(
+      [pending(1_047_500)],
+      [],
+      [{ amountUzs: 1_000_000, status: 'PENDING' }],
+      LIMIT,
+    );
+    expect(e.availableUzs).toBe(47_500);
+    expect(e.withdrawableUzs).toBe(0);
+  });
+
+  it('verifying a request does not change what is still available', () => {
+    const before = computeUserWithdrawEligibility([pending(1_047_500)], [], [{ amountUzs: 1_000_000, status: 'PENDING' }], LIMIT);
+    const after = computeUserWithdrawEligibility([pending(1_047_500)], [], [{ amountUzs: 1_000_000, status: 'VERIFIED' }], LIMIT);
+    expect(after.availableUzs).toBe(before.availableUzs);
+  });
+
+  it('a REJECTED request frees the amount again', () => {
+    const e = computeUserWithdrawEligibility(
+      [pending(1_000_000)],
+      [],
+      [{ amountUzs: 900_000, status: 'REJECTED' }],
+      LIMIT,
+    );
+    expect(e.availableUzs).toBe(1_000_000);
+    expect(e.withdrawableUzs).toBe(900_000);
+  });
+
+  it('ignores commissions already marked PAID', () => {
+    const e = computeUserWithdrawEligibility(
+      [{ amountUzs: 500_000, status: 'PAID' }, pending(350_000)],
+      [],
+      [],
+      LIMIT,
+    );
+    expect(e.availableUzs).toBe(350_000);
+    expect(e.withdrawableUzs).toBe(300_000);
   });
 });

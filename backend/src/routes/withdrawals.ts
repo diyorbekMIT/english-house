@@ -1,13 +1,12 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { db } from '../../db/client.js';
-import { withdrawRequests, commissionRules, users, roles } from '../../db/schema.js';
+import { withdrawRequests, commissionRules, commissions, payouts, users, roles } from '../../db/schema.js';
 import { authenticate, requireRole } from '../middleware/auth.js';
 import { logAudit } from '../middleware/audit.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
-import { getUserBalance } from '../lib/balance.js';
-import { computeWithdrawEligibility } from '../lib/withdraw.js';
-import { and, desc, eq, inArray } from 'drizzle-orm';
+import { computeUserWithdrawEligibility } from '../lib/withdraw.js';
+import { and, desc, eq } from 'drizzle-orm';
 
 export const withdrawalsRouter = Router();
 withdrawalsRouter.use(authenticate);
@@ -16,8 +15,6 @@ withdrawalsRouter.use(authenticate);
 // handing over, required when rejecting (the teacher/director needs to know why).
 const OptionalCommentSchema = z.object({ comment: z.string().trim().max(500).optional() });
 const RejectCommentSchema = z.object({ comment: z.string().trim().min(1, 'Rad etish sababini yozing').max(500) });
-
-const CLAIMED_STATUSES: ('PENDING' | 'VERIFIED' | 'GIVEN')[] = ['PENDING', 'VERIFIED', 'GIVEN'];
 
 const getEligibilityForUser = async (userId: number, role: 'TEACHER' | 'DIRECTOR') => {
   const [rules] = await db
@@ -29,17 +26,13 @@ const getEligibilityForUser = async (userId: number, role: 'TEACHER' | 'DIRECTOR
 
   const limitUzs = role === 'TEACHER' ? rules?.withdrawLimitTeacherUzs ?? 0 : rules?.withdrawLimitDirectorUzs ?? 0;
 
-  const balance = await getUserBalance(db, userId);
+  const [userCommissions, userPayouts, userRequests] = await Promise.all([
+    db.select().from(commissions).where(eq(commissions.userId, userId)),
+    db.select().from(payouts).where(eq(payouts.receiverId, userId)),
+    db.select().from(withdrawRequests).where(eq(withdrawRequests.userId, userId)),
+  ]);
 
-  const claimedRows = await db
-    .select({ amountUzs: withdrawRequests.amountUzs })
-    .from(withdrawRequests)
-    .where(and(eq(withdrawRequests.userId, userId), inArray(withdrawRequests.status, CLAIMED_STATUSES)));
-  const alreadyClaimedUzs = claimedRows.reduce((sum, r) => sum + r.amountUzs, 0);
-
-  const eligibility = computeWithdrawEligibility(balance.commissionPendingUzs, limitUzs, alreadyClaimedUzs);
-
-  return { ...eligibility, pendingUzs: balance.commissionPendingUzs, limitUzs };
+  return computeUserWithdrawEligibility(userCommissions, userPayouts, userRequests, limitUzs);
 };
 
 // GET /withdrawals/eligibility — a director/teacher checking their own withdraw eligibility.

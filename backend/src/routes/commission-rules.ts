@@ -10,7 +10,10 @@ import { desc, eq } from 'drizzle-orm';
 export const commissionRulesRouter = Router();
 commissionRulesRouter.use(authenticate);
 
-commissionRulesRouter.get('/', asyncHandler(async (_req, res) => {
+// CEO-only: percents, bonuses, the special price and withdraw limits are all
+// confidential business terms. Payment recorders only learn the payment cap through
+// the validation error on POST monthly-payments.
+commissionRulesRouter.get('/', requireRole('SUPER_ADMIN'), asyncHandler(async (_req, res) => {
   const [rules] = await db
     .select()
     .from(commissionRules)

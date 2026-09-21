@@ -20,7 +20,7 @@ Toshkentdagi ta'lim markazi uchun o'quvchilar va referallarni kuzatish tizimi (R
 DATABASE_URL=postgres://postgres:postgres@localhost:5432/english_house?sslmode=disable
 JWT_SECRET=change_me_to_a_long_random_string_min_32_chars
 ADMIN_PHONE=+998900000001
-ADMIN_PASSWORD=changeme123
+ADMIN_PASSWORD=<kamida-10-belgili-kuchli-parol>
 PORT=3001
 FRONTEND_URL=http://localhost:5173
 ```
@@ -36,7 +36,7 @@ npm run seed         # Rollar va birinchi SuperAdminni yaratish
 
 Boshlang'ich SuperAdmin ma'lumotlari:
 - **Telefon**: `+998900000001`
-- **Parol**: `changeme123`
+- **Parol**: `ADMIN_PASSWORD` orqali o'zingiz belgilagan parol (seed uni ekranga chiqarmaydi)
 
 ### 3. Serverlarni ishga tushirish
 

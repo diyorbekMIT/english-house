@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, type ReactNode } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api';
 
 export interface AuthUser {
@@ -25,7 +26,7 @@ interface LoginResponse {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-const VALID_ROLES = ['SUPER_ADMIN', 'MANAGER', 'ADMIN', 'DIRECTOR', 'TEACHER'];
+const VALID_ROLES = ['SUPER_ADMIN', 'MANAGER', 'SALES_MANAGER', 'ADMIN', 'DIRECTOR', 'TEACHER'];
 
 const parseUser = (): AuthUser | null => {
   const raw = localStorage.getItem('user');
@@ -49,6 +50,7 @@ const parseUser = (): AuthUser | null => {
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<AuthUser | null>(parseUser);
+  const queryClient = useQueryClient();
 
   const login = async (phone: string, password: string): Promise<AuthUser> => {
     const { data } = await api.post<LoginResponse>('/auth/login', { phone, password });
@@ -62,6 +64,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     localStorage.setItem('user', JSON.stringify(authUser));
     localStorage.setItem('token', data.token);
     localStorage.setItem('role', data.role);
+    queryClient.clear();
     setUser(authUser);
     return authUser;
   };
@@ -70,6 +73,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     localStorage.removeItem('user');
     localStorage.removeItem('token');
     localStorage.removeItem('role');
+    // Otherwise the next account signing in on this tab briefly sees the previous
+    // user's cached students, payouts and commission rules.
+    queryClient.clear();
     setUser(null);
   };
 

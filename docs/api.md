@@ -14,7 +14,7 @@ Barcha himoyalangan so'rovlar uchun header: `Authorization: Bearer <token>`.
   ```json
   {
     "phone": "+998900000001",
-    "password": "changeme123"
+    "password": "<parol>"
   }
   ```
 - **Javob**:

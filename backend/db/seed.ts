@@ -4,7 +4,7 @@
  *
  * Reads from env:
  *   ADMIN_PHONE    (default: +998900000001)
- *   ADMIN_PASSWORD (default: changeme123)
+ *   ADMIN_PASSWORD (required when the CEO account doesn't exist yet; min 10 chars)
  */
 import 'dotenv/config';
 import bcrypt from 'bcryptjs';
@@ -32,10 +32,12 @@ const run = async (): Promise<void> => {
   if (!superAdminRole) throw new Error('SuperAdmin role not found');
 
   const phone = process.env['ADMIN_PHONE'] ?? '+998900000001';
-  const password = process.env['ADMIN_PASSWORD'] ?? 'changeme123';
-
   const existing = await db.select().from(users).where(eq(users.phone, phone));
   if (existing.length === 0) {
+    const password = process.env['ADMIN_PASSWORD'];
+    if (!password || password.length < 10 || password === 'changeme123') {
+      throw new Error('ADMIN_PASSWORD must be set to a strong password (min 10 chars) to create the CEO account.');
+    }
     const passwordHash = await bcrypt.hash(password, 12);
     const [admin] = await db.insert(users).values({
       fullName: 'Super Admin',
@@ -43,7 +45,7 @@ const run = async (): Promise<void> => {
       passwordHash,
       roleId: superAdminRole.id,
     }).returning();
-    console.log(`SuperAdmin created: phone=${phone}  password=${password}`);
+    console.log(`SuperAdmin created: phone=${phone}`);
     console.log(`  ID: ${admin!.id}`);
   } else {
     console.log(`SuperAdmin already exists: phone=${phone}`);
