@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
 import { JWT_SECRET, PORT, FRONTEND_URL } from './config.js';
 import { authRouter } from './routes/auth.js';
 import { usersRouter } from './routes/users.js';
@@ -19,8 +20,20 @@ export { JWT_SECRET };
 
 const app = express();
 
+// Heroku terminates TLS at its router: trust one proxy hop so req.ip is the real client
+// (rate limiting) and x-forwarded-proto reflects the original scheme.
+app.set('trust proxy', 1);
+app.use((req, res, next) => {
+  if (process.env['NODE_ENV'] === 'production' && req.headers['x-forwarded-proto'] === 'http' && req.path !== '/health') {
+    res.redirect(308, `https://${req.headers.host}${req.originalUrl}`);
+    return;
+  }
+  next();
+});
+// This is a JSON API consumed cross-origin by the Vercel frontend.
+app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
 app.use(cors({ origin: FRONTEND_URL }));
-app.use(express.json());
+app.use(express.json({ limit: '100kb' }));
 
 app.use('/auth', authRouter);
 app.use('/users', usersRouter);
@@ -42,6 +55,16 @@ app.get('/health', (_req, res) => res.json({ status: 'ok' }));
 // so without this a single failing request (e.g. a DB error) crashes the whole
 // process instead of just returning a 500 to that request.
 app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  // Client mistakes raised by Express itself (oversized or malformed JSON body) carry a
+  // 4xx status — answer with it instead of a misleading 500.
+  const status = (err as { status?: number; statusCode?: number } | null)?.status
+    ?? (err as { statusCode?: number } | null)?.statusCode;
+  if (typeof status === 'number' && status >= 400 && status < 500) {
+    if (!res.headersSent) {
+      res.status(status).json({ error: status === 413 ? 'Request body too large' : 'Invalid request' });
+    }
+    return;
+  }
   console.error('Unhandled route error:', err);
   if (!res.headersSent) res.status(500).json({ error: 'Internal server error' });
 });
