@@ -6,7 +6,8 @@ import { users, roles, schools, commissionRules, payouts } from '../../db/schema
 import { authenticate, requireRole } from '../middleware/auth.js';
 import { logAudit } from '../middleware/audit.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
-import { and, desc, eq } from 'drizzle-orm';
+import { RequestRejected } from '../lib/httpErrors.js';
+import { and, desc, eq, ne, count } from 'drizzle-orm';
 
 const isUniquePhoneViolation = (err: unknown): boolean =>
   typeof err === 'object' && err !== null && (err as { code?: string }).code === '23505';
@@ -180,16 +181,26 @@ usersRouter.post('/director', requireRole('SUPER_ADMIN'), asyncHandler(async (re
 // Director (or SuperAdmin) creates Teacher
 usersRouter.post('/teacher', requireRole('DIRECTOR', 'SUPER_ADMIN'), asyncHandler(async (req, res) => {
   const user = req.user!;
-  let schoolId = user.schoolId;
-  if (user.role === 'SUPER_ADMIN') {
-    const parsedBody = req.body as { schoolId?: number };
-    if (parsedBody.schoolId) schoolId = Number(parsedBody.schoolId);
+  let schoolId: number | undefined;
+
+  if (user.role === 'DIRECTOR') {
+    // A director always creates teachers in their own school; nothing in the body can
+    // redirect a teacher to another school.
+    if (user.schoolId === undefined) {
+      res.status(403).json({ error: 'Sizga maktab biriktirilmagan.' });
+      return;
+    }
+    schoolId = user.schoolId;
+  } else {
+    const requested = (req.body as { schoolId?: unknown } | undefined)?.schoolId;
+    if (requested !== undefined && requested !== null) {
+      const [school] = await db.select({ id: schools.id }).from(schools).where(eq(schools.id, Number(requested)));
+      if (!school) { res.status(404).json({ error: 'School not found' }); return; }
+      schoolId = school.id;
+    }
   }
-  if (!schoolId && user.role === 'DIRECTOR') {
-    const [dUser] = await db.select().from(users).where(eq(users.id, user.userId));
-    if (dUser?.schoolId) schoolId = dUser.schoolId;
-  }
-  const result = await createUser('TEACHER', req.body, user.userId, {
+
+  const result = await createUser('TEACHER', { ...(req.body as object), schoolId }, user.userId, {
     directorId: user.role === 'DIRECTOR' ? user.userId : undefined,
     schoolId,
   });
@@ -210,14 +221,7 @@ usersRouter.get('/', requireRole('SUPER_ADMIN', 'MANAGER', 'SALES_MANAGER', 'ADM
   const { role: roleFilter, schoolId: schoolFilter } = req.query;
   const user = req.user!;
 
-  let dirSchoolId: number | undefined = undefined;
-  if (user.role === 'DIRECTOR') {
-    dirSchoolId = user.schoolId;
-    if (!dirSchoolId) {
-      const [dUser] = await db.select().from(users).where(eq(users.id, user.userId));
-      dirSchoolId = dUser?.schoolId ?? undefined;
-    }
-  }
+  const dirSchoolId = user.role === 'DIRECTOR' ? user.schoolId : undefined;
 
   const rows = await db
     .select({
@@ -238,6 +242,8 @@ usersRouter.get('/', requireRole('SUPER_ADMIN', 'MANAGER', 'SALES_MANAGER', 'ADM
     .where(
       and(
         roleFilter ? eq(roles.name, String(roleFilter)) : undefined,
+        // The CEO account is invisible to every other role.
+        user.role === 'SUPER_ADMIN' ? undefined : ne(roles.name, 'SUPER_ADMIN'),
         user.role === 'DIRECTOR'
           ? (dirSchoolId ? eq(users.schoolId, dirSchoolId) : eq(users.directorId, user.userId))
           : schoolFilter
@@ -258,6 +264,14 @@ usersRouter.get('/:id', requireRole('SUPER_ADMIN', 'MANAGER', 'SALES_MANAGER', '
     .innerJoin(roles, eq(users.roleId, roles.id))
     .where(eq(users.id, id));
   if (!row) { res.status(404).json({ error: 'Not found' }); return; }
+
+  // Directors only see their own school's people; nobody but the CEO sees the CEO.
+  const viewer = req.user!;
+  const outOfScope =
+    (viewer.role !== 'SUPER_ADMIN' && row.role === 'SUPER_ADMIN') ||
+    (viewer.role === 'DIRECTOR' && (viewer.schoolId === undefined || row.schoolId !== viewer.schoolId));
+  if (outOfScope) { res.status(404).json({ error: 'Not found' }); return; }
+
   res.json(row);
 }));
 
@@ -288,6 +302,27 @@ usersRouter.delete('/:id', asyncHandler(async (req, res) => {
     return;
   }
 
+  if (id === caller.userId) {
+    res.status(400).json({ error: "O'zingizni nofaol qila olmaysiz." });
+    return;
+  }
+  const [targetRole] = await db
+    .select({ name: roles.name })
+    .from(users)
+    .innerJoin(roles, eq(users.roleId, roles.id))
+    .where(eq(users.id, id));
+  if (targetRole?.name === 'SUPER_ADMIN') {
+    const [{ activeCeos }] = await db
+      .select({ activeCeos: count() })
+      .from(users)
+      .innerJoin(roles, eq(users.roleId, roles.id))
+      .where(and(eq(roles.name, 'SUPER_ADMIN'), eq(users.isActive, true)));
+    if ((activeCeos ?? 0) <= 1) {
+      res.status(400).json({ error: "Oxirgi faol bosh administratorni nofaol qilib bo'lmaydi." });
+      return;
+    }
+  }
+
   // Deactivate user rather than hard delete to preserve relational integrity with students and commissions
   await db.update(users).set({ isActive: false }).where(eq(users.id, id));
 
@@ -300,4 +335,132 @@ usersRouter.delete('/:id', asyncHandler(async (req, res) => {
   });
 
   res.json({ message: "Foydalanuvchi muvaffaqiyatli nofaol holatga o'tkazildi" });
+}));
+
+
+// ── Self-service and CEO account management ─────────────────────────────────────
+
+const NewPasswordSchema = z.string().min(8, "Parol kamida 8 belgidan iborat bo'lishi kerak").max(72);
+
+// PATCH /users/me/password — any signed-in user changes their own password. Needs the
+// current one, so a stolen session alone can't lock the owner out.
+usersRouter.patch('/me/password', asyncHandler(async (req, res) => {
+  const parsed = z
+    .object({ currentPassword: z.string().min(1), newPassword: NewPasswordSchema })
+    .safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: parsed.error.flatten() }); return; }
+
+  const [me] = await db.select({ passwordHash: users.passwordHash }).from(users).where(eq(users.id, req.user!.userId));
+  if (!me || !(await bcrypt.compare(parsed.data.currentPassword, me.passwordHash))) {
+    res.status(400).json({ error: "Joriy parol noto'g'ri." });
+    return;
+  }
+  if (parsed.data.currentPassword === parsed.data.newPassword) {
+    res.status(400).json({ error: "Yangi parol joriy paroldan farq qilishi kerak." });
+    return;
+  }
+
+  await db
+    .update(users)
+    .set({ passwordHash: await bcrypt.hash(parsed.data.newPassword, 12), updatedAt: new Date() })
+    .where(eq(users.id, req.user!.userId));
+
+  await logAudit(db, {
+    actorUserId: req.user!.userId,
+    action: 'PASSWORD_CHANGE',
+    entityType: 'user',
+    entityId: req.user!.userId,
+    description: `User ${req.user!.userId} changed their own password`,
+  });
+  res.json({ message: "Parol o'zgartirildi." });
+}));
+
+// PATCH /users/:id/password — CEO resets someone's password (forgotten password).
+usersRouter.patch('/:id/password', requireRole('SUPER_ADMIN'), asyncHandler(async (req, res) => {
+  const id = Number(req.params['id']);
+  const parsed = z.object({ newPassword: NewPasswordSchema }).safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: parsed.error.flatten() }); return; }
+
+  const [target] = await db.select({ fullName: users.fullName }).from(users).where(eq(users.id, id));
+  if (!target) { res.status(404).json({ error: 'Foydalanuvchi topilmadi' }); return; }
+
+  await db
+    .update(users)
+    .set({ passwordHash: await bcrypt.hash(parsed.data.newPassword, 12), updatedAt: new Date() })
+    .where(eq(users.id, id));
+
+  await logAudit(db, {
+    actorUserId: req.user!.userId,
+    action: 'PASSWORD_RESET',
+    entityType: 'user',
+    entityId: id,
+    description: `Password of '${target.fullName}' (ID: ${id}) reset by SuperAdmin`,
+  });
+  res.json({ message: "Parol yangilandi." });
+}));
+
+// PATCH /users/:id/reactivate — undo a deactivation.
+usersRouter.patch('/:id/reactivate', requireRole('SUPER_ADMIN'), asyncHandler(async (req, res) => {
+  const id = Number(req.params['id']);
+  const [target] = await db
+    .update(users)
+    .set({ isActive: true, updatedAt: new Date() })
+    .where(eq(users.id, id))
+    .returning({ fullName: users.fullName });
+  if (!target) { res.status(404).json({ error: 'Foydalanuvchi topilmadi' }); return; }
+
+  await logAudit(db, {
+    actorUserId: req.user!.userId,
+    action: 'USER_REACTIVATE',
+    entityType: 'user',
+    entityId: id,
+    description: `Foydalanuvchi '${target.fullName}' (ID: ${id}) CEO tomonidan qayta faollashtirildi`,
+  });
+  res.json({ message: 'Foydalanuvchi faollashtirildi.' });
+}));
+
+// PATCH /users/:id — CEO fixes a user's basic details (typos in name/phone/email, or a
+// school change).
+usersRouter.patch('/:id', requireRole('SUPER_ADMIN'), asyncHandler(async (req, res) => {
+  const id = Number(req.params['id']);
+  const parsed = z
+    .object({
+      fullName: z.string().trim().min(1).max(200).optional(),
+      phone: z.string().trim().min(4).max(30).optional(),
+      email: z.string().email().nullable().optional(),
+      schoolId: z.number().int().nullable().optional(),
+    })
+    .safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: parsed.error.flatten() }); return; }
+  if (Object.keys(parsed.data).length === 0) { res.status(400).json({ error: 'Nothing to update' }); return; }
+
+  try {
+    const updated = await db.transaction(async (tx) => {
+      const [before] = await tx.select().from(users).where(eq(users.id, id));
+      if (!before) throw new RequestRejected(404, 'Foydalanuvchi topilmadi');
+      if (parsed.data.schoolId) {
+        const [school] = await tx.select({ id: schools.id }).from(schools).where(eq(schools.id, parsed.data.schoolId));
+        if (!school) throw new RequestRejected(404, 'School not found');
+      }
+      const [row] = await tx
+        .update(users)
+        .set({ ...parsed.data, updatedAt: new Date() })
+        .where(eq(users.id, id))
+        .returning({ id: users.id, fullName: users.fullName, phone: users.phone, email: users.email, schoolId: users.schoolId });
+      await logAudit(tx, {
+        actorUserId: req.user!.userId,
+        action: 'USER_UPDATE',
+        entityType: 'user',
+        entityId: id,
+        description: `User '${before.fullName}' (ID: ${id}) updated by SuperAdmin`,
+        details: { changes: parsed.data },
+      });
+      return row;
+    });
+    res.json(updated);
+  } catch (err) {
+    if (err instanceof RequestRejected) { res.status(err.status).json({ error: err.message }); return; }
+    if (isUniquePhoneViolation(err)) { res.status(409).json({ error: "Bu telefon raqami allaqachon ro'yxatdan o'tgan" }); return; }
+    throw err;
+  }
 }));

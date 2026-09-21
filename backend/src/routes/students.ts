@@ -5,6 +5,7 @@ import { students, schools, users, roles, monthlyPayments, courses } from '../..
 import { authenticate, requireRole } from '../middleware/auth.js';
 import { logAudit } from '../middleware/audit.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
+import { RequestRejected, isUniqueViolation } from '../lib/httpErrors.js';
 import { and, or, desc, eq, like, inArray, notInArray, isNull, SQL } from 'drizzle-orm';
 
 export const studentsRouter = Router();
@@ -67,6 +68,21 @@ studentsRouter.post(
       .limit(1);
 
     if (existingStudent) {
+      const caller = req.user!;
+      // Staff need to know who already registered the lead; a teacher/director only
+      // sees details about their own students, never another school's.
+      const mayInspect =
+        caller.role === 'SUPER_ADMIN' || caller.role === 'SALES_MANAGER' || caller.role === 'MANAGER' ||
+        (caller.role === 'TEACHER' && existingStudent.teacherId === caller.userId) ||
+        (caller.role === 'DIRECTOR' && caller.schoolId !== undefined && existingStudent.schoolId === caller.schoolId);
+
+      if (!mayInspect) {
+        res.status(409).json({
+          error: "Ushbu telefon raqamli o'quvchi tizimda allaqachon mavjud! Takroriy ma'lumot kiritish taqiqlanadi.",
+        });
+        return;
+      }
+
       let teacherInfo = '';
       if (existingStudent.teacherId) {
         const [tUser] = await db
@@ -97,32 +113,67 @@ studentsRouter.post(
     }
 
     const user = req.user!;
-    const teacherId =
-      user.role === 'TEACHER' ? user.userId : (parsed.data.teacherId ?? undefined);
-    let schoolId = parsed.data.schoolId;
 
-    // Automatically link student to teacher's school
+    // Who a student is attributed to decides who earns commissions on them, so the
+    // school/teacher/director come from the caller's own hierarchy, never blindly from
+    // the request body.
+    let teacherId: number | undefined;
+    let schoolId: number | undefined;
+    let directorId: number | undefined;
+
     if (user.role === 'TEACHER') {
-      if (!schoolId && user.schoolId) {
-        schoolId = user.schoolId;
+      teacherId = user.userId;
+      schoolId = user.schoolId;
+    } else if (user.role === 'DIRECTOR') {
+      if (user.schoolId === undefined) {
+        res.status(403).json({ error: 'Sizga maktab biriktirilmagan.' });
+        return;
       }
-      if (!schoolId) {
-        const [tUser] = await db.select().from(users).where(eq(users.id, user.userId));
-        if (tUser?.schoolId) schoolId = tUser.schoolId;
+      schoolId = user.schoolId;
+      directorId = user.userId;
+      teacherId = parsed.data.teacherId;
+    } else {
+      teacherId = parsed.data.teacherId;
+      schoolId = parsed.data.schoolId;
+      directorId = parsed.data.directorId;
+    }
+
+    if (teacherId !== undefined && user.role !== 'TEACHER') {
+      const [teacher] = await db
+        .select({ schoolId: users.schoolId, roleName: roles.name, isActive: users.isActive })
+        .from(users)
+        .innerJoin(roles, eq(users.roleId, roles.id))
+        .where(eq(users.id, teacherId));
+      if (!teacher || teacher.roleName !== 'TEACHER' || !teacher.isActive) {
+        res.status(400).json({ error: "O'qituvchi topilmadi." });
+        return;
       }
-    } else if (teacherId && !schoolId) {
-      const [tUser] = await db.select().from(users).where(eq(users.id, teacherId));
-      if (tUser?.schoolId) schoolId = tUser.schoolId;
+      if (user.role === 'DIRECTOR' && teacher.schoolId !== user.schoolId) {
+        res.status(403).json({ error: "Bu o'qituvchi sizning maktabingizga tegishli emas." });
+        return;
+      }
+      if (schoolId === undefined && teacher.schoolId) schoolId = teacher.schoolId;
+    }
+
+    if (parsed.data.courseId !== undefined) {
+      const [course] = await db
+        .select({ id: courses.id })
+        .from(courses)
+        .where(and(eq(courses.id, parsed.data.courseId), eq(courses.isActive, true)));
+      if (!course) {
+        res.status(400).json({ error: 'Kurs topilmadi yoki faol emas.' });
+        return;
+      }
     }
 
     // Dynamic director assignment based on the school's active director
-    let directorId = parsed.data.directorId;
     if (schoolId && !directorId) {
       const [activeDir] = await db
         .select({ id: users.id })
         .from(users)
         .innerJoin(roles, eq(users.roleId, roles.id))
         .where(and(eq(users.schoolId, schoolId), eq(roles.name, 'DIRECTOR'), eq(users.isActive, true)))
+        .orderBy(users.id)
         .limit(1);
       if (activeDir) directorId = activeDir.id;
     }
@@ -182,14 +233,12 @@ studentsRouter.get(
     }
     // DIRECTOR sees all students belonging to their school (not bound to personal directorId!)
     if (user.role === 'DIRECTOR') {
-      let dirSchoolId = user.schoolId;
-      if (!dirSchoolId) {
-        const [dirUser] = await db.select().from(users).where(eq(users.id, user.userId));
-        dirSchoolId = dirUser?.schoolId ?? undefined;
+      if (user.schoolId === undefined) {
+        // A director with no school assigned must not fall through to "everything".
+        res.json([]);
+        return;
       }
-      if (dirSchoolId) {
-        conditions.push(eq(students.schoolId, dirSchoolId));
-      }
+      conditions.push(eq(students.schoolId, user.schoolId));
     }
     // SALES_MANAGER's job ends at the first payment — once that's recorded, the
     // student hands off to Admin, so it automatically drops off Sales Manager's list.
@@ -280,8 +329,117 @@ studentsRouter.get('/:id', requireRole('TEACHER', 'SALES_MANAGER', 'ADMIN', 'DIR
     .where(eq(students.id, id));
 
   if (!student) { res.status(404).json({ error: 'Not found' }); return; }
+
+  // Teachers only see their own students, directors only their school's; anything
+  // outside that scope answers 404 so the id can't even be probed.
+  const viewer = req.user!;
+  const outOfScope =
+    (viewer.role === 'TEACHER' && student.teacherId !== viewer.userId) ||
+    (viewer.role === 'DIRECTOR' && (viewer.schoolId === undefined || student.schoolId !== viewer.schoolId));
+  if (outOfScope) { res.status(404).json({ error: 'Not found' }); return; }
+
   res.json(student);
 }));
+
+const UpdateStudentSchema = z.object({
+  fullName: z.string().trim().min(1).max(200).optional(),
+  phone: z.string().trim().min(4).max(30).optional(),
+  secondaryPhone: z.string().trim().max(30).nullable().optional(),
+  schoolId: z.number().int().nullable().optional(),
+  teacherId: z.number().int().nullable().optional(),
+  courseId: z.number().int().nullable().optional(),
+});
+
+// PATCH /students/:id — CEO-only correction of a student's details (a typo in the name
+// or phone, or moving them to another teacher/school/course). Re-attribution changes
+// who earns commissions on later payments, which is why only the CEO may do it.
+studentsRouter.patch(
+  '/:id',
+  requireRole('SUPER_ADMIN'),
+  asyncHandler(async (req, res) => {
+    const id = Number(req.params['id']);
+    const parsed = UpdateStudentSchema.safeParse(req.body);
+    if (!parsed.success) { res.status(400).json({ error: parsed.error.flatten() }); return; }
+    if (Object.keys(parsed.data).length === 0) { res.status(400).json({ error: 'Nothing to update' }); return; }
+
+    try {
+      const updated = await db.transaction(async (tx) => {
+        const [before] = await tx.select().from(students).where(eq(students.id, id)).for('update');
+        if (!before) throw new RequestRejected(404, 'Student not found');
+
+        const patch: Partial<typeof students.$inferInsert> = {};
+        if (parsed.data.fullName !== undefined) patch.fullName = parsed.data.fullName;
+        if (parsed.data.phone !== undefined) patch.phone = normalizePhone(parsed.data.phone);
+        if (parsed.data.secondaryPhone !== undefined) {
+          patch.secondaryPhone = parsed.data.secondaryPhone ? normalizePhone(parsed.data.secondaryPhone) : null;
+        }
+        if (parsed.data.courseId !== undefined) {
+          if (parsed.data.courseId !== null) {
+            const [course] = await tx.select({ id: courses.id }).from(courses).where(eq(courses.id, parsed.data.courseId));
+            if (!course) throw new RequestRejected(400, 'Kurs topilmadi.');
+          }
+          patch.courseId = parsed.data.courseId;
+        }
+        if (parsed.data.teacherId !== undefined) {
+          if (parsed.data.teacherId !== null) {
+            const [teacher] = await tx
+              .select({ schoolId: users.schoolId, roleName: roles.name })
+              .from(users)
+              .innerJoin(roles, eq(users.roleId, roles.id))
+              .where(eq(users.id, parsed.data.teacherId));
+            if (!teacher || teacher.roleName !== 'TEACHER') throw new RequestRejected(400, "O'qituvchi topilmadi.");
+          }
+          patch.teacherId = parsed.data.teacherId;
+        }
+        if (parsed.data.schoolId !== undefined) {
+          if (parsed.data.schoolId !== null) {
+            const [school] = await tx.select({ id: schools.id }).from(schools).where(eq(schools.id, parsed.data.schoolId));
+            if (!school) throw new RequestRejected(400, 'Maktab topilmadi.');
+          }
+          patch.schoolId = parsed.data.schoolId;
+          // The school's active director follows the school.
+          if (parsed.data.schoolId !== null && parsed.data.schoolId !== before.schoolId) {
+            const [activeDir] = await tx
+              .select({ id: users.id })
+              .from(users)
+              .innerJoin(roles, eq(users.roleId, roles.id))
+              .where(and(eq(users.schoolId, parsed.data.schoolId), eq(roles.name, 'DIRECTOR'), eq(users.isActive, true)))
+              .orderBy(users.id)
+              .limit(1);
+            patch.directorId = activeDir?.id ?? null;
+          }
+        }
+
+        const [row] = await tx
+          .update(students)
+          .set({ ...patch, updatedAt: new Date() })
+          .where(eq(students.id, id))
+          .returning();
+
+        await logAudit(tx, {
+          actorUserId: req.user!.userId,
+          action: 'STUDENT_UPDATE',
+          entityType: 'student',
+          entityId: id,
+          description: `Student '${before.fullName}' (ID: ${id}) updated by SuperAdmin`,
+          details: {
+            before: {
+              fullName: before.fullName, phone: before.phone, secondaryPhone: before.secondaryPhone,
+              schoolId: before.schoolId, teacherId: before.teacherId, courseId: before.courseId,
+            },
+            changes: parsed.data,
+          },
+        });
+        return row;
+      });
+      res.json(updated);
+    } catch (err) {
+      if (err instanceof RequestRejected) { res.status(err.status).json({ error: err.message }); return; }
+      if (isUniqueViolation(err)) { res.status(409).json({ error: "Ushbu telefon raqamli o'quvchi allaqachon mavjud." }); return; }
+      throw err;
+    }
+  }),
+);
 
 const CALL_STATUS_VALUES = [
   'WAITING',
