@@ -9,9 +9,7 @@ import { useAuth } from '../contexts/AuthContext';
 import StudentPaymentHistoryPage from './StudentPaymentHistoryPage';
 import FirstPaymentsPage from './FirstPaymentsPage';
 import { formatUzs } from '../lib/format';
-import { AmountInput } from '../components/AmountInput';
-import { getErrorMessage } from '../lib/errors';
-import { sameMonthPaymentWarning } from '../lib/payments';
+import SharedPaymentModal from '../components/PaymentModal';
 
 interface Student {
   id: number;
@@ -41,161 +39,17 @@ interface Commission {
   createdAt: string;
 }
 
-interface AuditLog {
-  id: number;
-  action: string;
-  entityType: string;
-  description: string;
-  actorUserId: number;
-  createdAt: string;
-}
-
-// ── Payment Modal ────────────────────────────────────────────────────────────────
-const PaymentModal = ({ student, onClose }: { student: Student; onClose: () => void }) => {
-  const qc = useQueryClient();
-  const currentMonth = new Date().toISOString().slice(0, 7); // YYYY-MM
-  const [amount, setAmount] = useState('');
-  const [paidForMonth, setPaidForMonth] = useState(currentMonth);
-  const [paymentMethod, setPaymentMethod] = useState('CASH');
-  const [notes, setNotes] = useState('');
-  const [error, setError] = useState('');
-  const { confirm, showToast } = useFeedback();
-
-  const { data: existingPayments = [] } = useQuery<{ amountUzs: number; paidForMonth: string; voidedAt?: string | null }[]>({
-    queryKey: ['student-payments', String(student.id)],
-    queryFn: () => api.get(`/students/${student.id}/monthly-payments`).then((r) => r.data),
-  });
-
-  const mutation = useMutation({
-    mutationFn: (body: {
-      amountUzs: number;
-      paidForMonth: string;
-      paymentMethod?: string;
-      notes?: string;
-    }) => api.post(`/students/${student.id}/monthly-payments`, body),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['student-payments', String(student.id)] });
-      qc.invalidateQueries({ queryKey: ['students'] });
-      qc.invalidateQueries({ queryKey: ['commissions'] });
-      qc.invalidateQueries({ queryKey: ['teacher-students'] });
-      showToast({
-        type: 'success',
-        title: "To'lov qabul qilindi",
-        message: `${student.fullName} uchun ${formatUzs(Number(amount))} UZS to'lov muvaffaqiyatli saqlandi va komissiyalar hisoblandi!`,
-      });
-      onClose();
-    },
-    onError: (err: unknown) => {
-      const errText = getErrorMessage(err, 'To‘lovni saqlashda xatolik yuz berdi.');
-      setError(errText);
-      showToast({ type: 'error', title: 'Xatolik', message: errText });
-    },
-  });
-
-  const handleSave = async () => {
-    const numAmount = Number(amount);
-    if (!amount || isNaN(numAmount) || numAmount <= 0) {
-      setError('To‘lov summasini to‘g‘ri kiriting');
-      return;
-    }
-
-    const duplicateWarning = sameMonthPaymentWarning(existingPayments, paidForMonth);
-    const confirmed = await confirm({
-      title: "Oylik to'lovni qabul qilishni tasdiqlaysizmi?",
-      message: duplicateWarning ?? "To'lov kiritilgach, ushbu o'quvchini jalb qilgan o'qituvchi va direktor hisobiga avtomatik komissiya yoziladi.",
-      variant: duplicateWarning ? 'warning' : undefined,
-      details: [
-        { label: "O'quvchi F.I.SH", value: student.fullName },
-        { label: "Telefon", value: student.phone },
-        { label: "To'lov summasi", value: `${formatUzs(numAmount)} UZS` },
-        { label: "To'lov oyi", value: paidForMonth },
-        { label: "To'lov usuli", value: paymentMethod === 'CASH' ? 'Naqd pul (CASH)' : paymentMethod === 'CARD' ? 'Karta orqali' : paymentMethod },
-      ],
-      confirmText: "Ha, to'lovni qabul qilish",
-    });
-    if (!confirmed) return;
-
-    mutation.mutate({
-      amountUzs: numAmount,
-      paidForMonth,
-      paymentMethod,
-      notes: notes || undefined,
-    });
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="card w-full max-w-md space-y-4 shadow-xl">
-        <div>
-          <h2 className="section-title">Oylik to'lovni kiritish</h2>
-          <p className="text-xs text-slate-500 mt-0.5">{student.fullName} ({student.phone})</p>
-        </div>
-
-        <div>
-          <label className="label">To'lov summasi (UZS)</label>
-          <AmountInput
-            className="input"
-            placeholder="500000"
-            value={amount}
-            onChange={setAmount}
-            required
-          />
-        </div>
-
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="label">Qaysi oy uchun</label>
-            <input
-              type="month"
-              className="input"
-              value={paidForMonth}
-              onChange={(e) => setPaidForMonth(e.target.value)}
-              required
-            />
-          </div>
-          <div>
-            <label className="label">To'lov usuli</label>
-            <select
-              className="input"
-              value={paymentMethod}
-              onChange={(e) => setPaymentMethod(e.target.value)}
-            >
-              <option value="CASH">Naqd pul (CASH)</option>
-              <option value="CARD">Plastik karta (CARD)</option>
-              <option value="TRANSFER">O'tkazma (TRANSFER)</option>
-            </select>
-          </div>
-        </div>
-
-        <div>
-          <label className="label">Izoh (ixtiyoriy)</label>
-          <input
-            type="text"
-            className="input"
-            placeholder="Birinchi oylik to'lov…"
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-          />
-        </div>
-
-        {error && <div className="notice-error">{error}</div>}
-
-        <div className="flex gap-2 pt-2">
-          <button
-            onClick={handleSave}
-            className="btn-primary flex-1"
-            disabled={mutation.isPending}
-          >
-            {mutation.isPending ? 'Saqlanmoqda…' : "To'lovni saqlash"}
-          </button>
-          <button onClick={onClose} className="btn-secondary">
-            Bekor qilish
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-};
+// ── Payment Modal (first and follow-up payments; sales manager / manager screens) ──
+const PaymentModal = ({ student, onClose }: { student: Student; onClose: () => void }) => (
+  <SharedPaymentModal
+    student={student}
+    onClose={onClose}
+    invalidate={['students', 'commissions', 'teacher-students']}
+    confirmMessage="To'lov kiritilgach, ushbu o'quvchini jalb qilgan o'qituvchi va direktor hisobiga avtomatik komissiya yoziladi."
+    successSuffix=" va komissiyalar hisoblandi!"
+    notesPlaceholder="Birinchi oylik to'lov…"
+  />
+);
 
 // ── Call Status & Reason Modal ───────────────────────────────────────────────────
 const CallStatusModal = ({
@@ -421,62 +275,11 @@ const StudentsPage = () => {
   });
   const { confirm, showToast } = useFeedback();
 
-  const callStatusMutation = useMutation({
-    mutationFn: ({ id, callStatus }: { id: number; callStatus: string }) =>
-      api.patch(`/students/${id}/call-status`, { callStatus }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['students'] }),
-  });
-
   const studyStatusMutation = useMutation({
     mutationFn: ({ id, studyStatus }: { id: number; studyStatus: string }) =>
       api.patch(`/students/${id}/study-status`, { studyStatus }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['students'] }),
   });
-
-  const handleCallStatusChange = async (s: Student, newStatus: string) => {
-    if (s.callStatus === newStatus) return;
-    const statusLabels: Record<string, string> = {
-      WAITING: 'Kutilmoqda (WAITING)',
-      CALLED: 'Aloqaga chiqildi (CALLED)',
-      REGISTERED: 'Kursga yozildi (REGISTERED)',
-      FIRST_LESSON: 'Birinchi dars (FIRST_LESSON)',
-      STARTED_STUDYING: 'Dars boshladi (STARTED_STUDYING)',
-      MADE_PAYMENT: "To'lov qildi (MADE_PAYMENT)",
-      REJECTED: 'Rad etildi (REJECTED)',
-    };
-    const confirmed = await confirm({
-      title: "Qo'ng'iroq holatini o'zgartirish",
-      message: `"${s.fullName}" uchun qo'ng'iroq natijasini "${statusLabels[newStatus] || newStatus}" ga o'zgartirishni tasdiqlaysizmi?`,
-      details: [
-        { label: "O'quvchi", value: s.fullName },
-        { label: "Joriy holat", value: statusLabels[s.callStatus] || s.callStatus },
-        { label: "Yangi holat", value: statusLabels[newStatus] || newStatus },
-      ],
-      confirmText: "Ha, o'zgartirish",
-      variant: newStatus === 'REJECTED' ? 'danger' : 'primary',
-    });
-    if (!confirmed) return;
-
-    callStatusMutation.mutate(
-      { id: s.id, callStatus: newStatus },
-      {
-        onSuccess: () => {
-          showToast({
-            type: 'success',
-            title: 'Holat yangilandi',
-            message: `"${s.fullName}" qo'ng'iroq holati muvaffaqiyatli yangilandi.`,
-          });
-        },
-        onError: () => {
-          showToast({
-            type: 'error',
-            title: 'Xatolik',
-            message: "Qo'ng'iroq holatini yangilashda xatolik yuz berdi.",
-          });
-        },
-      }
-    );
-  };
 
   const handleStudyStatusToggle = async (s: Student) => {
     const nextStatus = s.studyStatus === 'ACTIVE' ? 'NOACTIVE' : 'ACTIVE';
@@ -775,15 +578,6 @@ const AdminTeacherStudentsPage = () => {
   });
   const { confirm, showToast } = useFeedback();
 
-  const callStatusMutation = useMutation({
-    mutationFn: ({ id, callStatus }: { id: number; callStatus: string }) =>
-      api.patch(`/students/${id}/call-status`, { callStatus }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['teacher-students', tIdNum] });
-      qc.invalidateQueries({ queryKey: ['students'] });
-    },
-  });
-
   const studyStatusMutation = useMutation({
     mutationFn: ({ id, studyStatus }: { id: number; studyStatus: string }) =>
       api.patch(`/students/${id}/study-status`, { studyStatus }),
@@ -792,50 +586,6 @@ const AdminTeacherStudentsPage = () => {
       qc.invalidateQueries({ queryKey: ['students'] });
     },
   });
-
-  const handleTeacherStudentCallStatus = async (s: Student, newStatus: string) => {
-    if (s.callStatus === newStatus) return;
-    const statusLabels: Record<string, string> = {
-      WAITING: 'Kutilmoqda (WAITING)',
-      CALLED: 'Aloqaga chiqildi (CALLED)',
-      REGISTERED: 'Kursga yozildi (REGISTERED)',
-      FIRST_LESSON: 'Birinchi dars (FIRST_LESSON)',
-      STARTED_STUDYING: 'Dars boshladi (STARTED_STUDYING)',
-      MADE_PAYMENT: "To'lov qildi (MADE_PAYMENT)",
-      REJECTED: 'Rad etildi (REJECTED)',
-    };
-    const confirmed = await confirm({
-      title: "Qo'ng'iroq holatini o'zgartirish",
-      message: `"${s.fullName}" uchun qo'ng'iroq natijasini "${statusLabels[newStatus] || newStatus}" ga o'zgartirishni tasdiqlaysizmi?`,
-      details: [
-        { label: "O'quvchi", value: s.fullName },
-        { label: "Yangi holat", value: statusLabels[newStatus] || newStatus },
-      ],
-      confirmText: "Ha, o'zgartirish",
-      variant: newStatus === 'REJECTED' ? 'danger' : 'primary',
-    });
-    if (!confirmed) return;
-
-    callStatusMutation.mutate(
-      { id: s.id, callStatus: newStatus },
-      {
-        onSuccess: () => {
-          showToast({
-            type: 'success',
-            title: 'Holat yangilandi',
-            message: `"${s.fullName}" qo'ng'iroq holati muvaffaqiyatli o'zgartirildi.`,
-          });
-        },
-        onError: () => {
-          showToast({
-            type: 'error',
-            title: 'Xatolik',
-            message: "Qo'ng'iroq holatini yangilashda xatolik yuz berdi.",
-          });
-        },
-      }
-    );
-  };
 
   const handleTeacherStudentStudyStatus = async (s: Student) => {
     const nextStatus = s.studyStatus === 'ACTIVE' ? 'NOACTIVE' : 'ACTIVE';

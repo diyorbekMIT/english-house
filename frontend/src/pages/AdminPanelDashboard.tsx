@@ -7,9 +7,7 @@ import { getErrorMessage } from '../lib/errors';
 import Layout from '../components/Layout';
 import StatusBadge from '../components/StatusBadge';
 import StudentPaymentHistoryPage from './StudentPaymentHistoryPage';
-import { formatUzs } from '../lib/format';
-import { AmountInput } from '../components/AmountInput';
-import { sameMonthPaymentWarning } from '../lib/payments';
+import SharedPaymentModal from '../components/PaymentModal';
 
 interface Student {
   id: number;
@@ -28,103 +26,15 @@ interface Student {
 }
 
 // ── Payment Modal — records a payment for a student who already has a first one ──
-const PaymentModal = ({ student, onClose }: { student: Student; onClose: () => void }) => {
-  const qc = useQueryClient();
-  const currentMonth = new Date().toISOString().slice(0, 7);
-  const [amount, setAmount] = useState('');
-  const [paidForMonth, setPaidForMonth] = useState(currentMonth);
-  const [paymentMethod, setPaymentMethod] = useState('CASH');
-  const [notes, setNotes] = useState('');
-  const [error, setError] = useState('');
-  const { confirm, showToast } = useFeedback();
-
-  const { data: existingPayments = [] } = useQuery<{ amountUzs: number; paidForMonth: string; voidedAt?: string | null }[]>({
-    queryKey: ['student-payments', String(student.id)],
-    queryFn: () => api.get(`/students/${student.id}/monthly-payments`).then((r) => r.data),
-  });
-
-  const mutation = useMutation({
-    mutationFn: (body: { amountUzs: number; paidForMonth: string; paymentMethod?: string; notes?: string }) =>
-      api.post(`/students/${student.id}/monthly-payments`, body),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['student-payments', String(student.id)] });
-      qc.invalidateQueries({ queryKey: ['admin-students'] });
-      showToast({
-        type: 'success',
-        title: "To'lov qabul qilindi",
-        message: `${student.fullName} uchun ${formatUzs(Number(amount))} UZS to'lov muvaffaqiyatli saqlandi.`,
-      });
-      onClose();
-    },
-    onError: (err: unknown) => {
-      const errText = getErrorMessage(err, "To'lovni saqlashda xatolik yuz berdi.");
-      setError(errText);
-      showToast({ type: 'error', title: 'Xatolik', message: errText });
-    },
-  });
-
-  const handleSave = async () => {
-    const numAmount = Number(amount);
-    if (!amount || isNaN(numAmount) || numAmount <= 0) {
-      setError("To'lov summasini to'g'ri kiriting");
-      return;
-    }
-    const duplicateWarning = sameMonthPaymentWarning(existingPayments, paidForMonth);
-    const confirmed = await confirm({
-      title: "Oylik to'lovni qabul qilishni tasdiqlaysizmi?",
-      message: duplicateWarning ?? "To'lov saqlanadi va to'lovlar tarixiga qo'shiladi.",
-      variant: duplicateWarning ? 'warning' : undefined,
-      details: [
-        { label: "O'quvchi F.I.SH", value: student.fullName },
-        { label: "To'lov summasi", value: `${formatUzs(numAmount)} UZS` },
-        { label: "To'lov oyi", value: paidForMonth },
-      ],
-      confirmText: "Ha, to'lovni qabul qilish",
-    });
-    if (!confirmed) return;
-    mutation.mutate({ amountUzs: numAmount, paidForMonth, paymentMethod, notes: notes || undefined });
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="card w-full max-w-md space-y-4 shadow-xl">
-        <div>
-          <h2 className="section-title">Oylik to'lovni kiritish</h2>
-          <p className="text-xs text-slate-500 mt-0.5">{student.fullName} ({student.phone})</p>
-        </div>
-        <div>
-          <label className="label">To'lov summasi (UZS)</label>
-          <AmountInput className="input" placeholder="500000" value={amount} onChange={setAmount} required />
-        </div>
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="label">Qaysi oy uchun</label>
-            <input type="month" className="input" value={paidForMonth} onChange={(e) => setPaidForMonth(e.target.value)} required />
-          </div>
-          <div>
-            <label className="label">To'lov usuli</label>
-            <select className="input" value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)}>
-              <option value="CASH">Naqd pul (CASH)</option>
-              <option value="CARD">Plastik karta (CARD)</option>
-              <option value="TRANSFER">O'tkazma (TRANSFER)</option>
-            </select>
-          </div>
-        </div>
-        <div>
-          <label className="label">Izoh (ixtiyoriy)</label>
-          <input type="text" className="input" placeholder="Izoh…" value={notes} onChange={(e) => setNotes(e.target.value)} />
-        </div>
-        {error && <div className="notice-error">{error}</div>}
-        <div className="flex gap-2 pt-2">
-          <button onClick={handleSave} className="btn-primary flex-1" disabled={mutation.isPending}>
-            {mutation.isPending ? 'Saqlanmoqda…' : "To'lovni saqlash"}
-          </button>
-          <button onClick={onClose} className="btn-secondary">Bekor qilish</button>
-        </div>
-      </div>
-    </div>
-  );
-};
+const PaymentModal = ({ student, onClose }: { student: Student; onClose: () => void }) => (
+  <SharedPaymentModal
+    student={student}
+    onClose={onClose}
+    invalidate={['admin-students']}
+    confirmMessage="To'lov saqlanadi va to'lovlar tarixiga qo'shiladi."
+    successSuffix="."
+  />
+);
 
 // ── Shared students table — used by the "all", school, and teacher drill-down views ──
 const StudentsTable = ({

@@ -4,3 +4,4 @@ backend/.env
 local_backup.dump
 backups/
 .DS_Store
+backend/drizzle/

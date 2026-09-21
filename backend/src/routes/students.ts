@@ -209,7 +209,7 @@ studentsRouter.post(
       });
       res.status(201).json(student);
     } catch (err: unknown) {
-      if ((err as { code?: string })?.code === '23505') {
+      if (isUniqueViolation(err)) {
         res.status(409).json({
           error: `Ushbu telefon raqamli o'quvchi (${normalizedPhone}) tizimda allaqachon mavjud! Takroriy o'quvchi kiritish taqiqlanadi.`,
         });

@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { db } from '../../db/client.js';
 import { users, roles } from '../../db/schema.js';
 import { eq } from 'drizzle-orm';
-import { rateLimit } from 'express-rate-limit';
+import { rateLimit, ipKeyGenerator } from 'express-rate-limit';
 import { JWT_SECRET } from '../config.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { logAudit } from '../middleware/audit.js';
@@ -19,13 +19,13 @@ const failedLoginLimit = { windowMs: 15 * 60 * 1000, skipSuccessfulRequests: tru
 const perAccountLimiter = rateLimit({
   ...failedLoginLimit,
   limit: 8,
-  keyGenerator: (req) => `${req.ip}:${String((req.body as { phone?: unknown } | undefined)?.phone ?? '')}`,
+  keyGenerator: (req) => `${ipKeyGenerator(req.ip ?? '')}:${String((req.body as { phone?: unknown } | undefined)?.phone ?? '')}`,
   message: { error: "Juda ko'p muvaffaqiyatsiz urinish. 15 daqiqadan so'ng qayta urinib ko'ring." },
 });
 const perAddressLimiter = rateLimit({
   ...failedLoginLimit,
   limit: 40,
-  keyGenerator: (req) => req.ip ?? 'unknown',
+  keyGenerator: (req) => ipKeyGenerator(req.ip ?? 'unknown'),
   message: { error: "Juda ko'p muvaffaqiyatsiz urinish. 15 daqiqadan so'ng qayta urinib ko'ring." },
 });
 

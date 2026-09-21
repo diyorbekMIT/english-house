@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import confetti from 'canvas-confetti';
 import { api } from '../lib/api';
 import { useFeedback } from '../contexts/FeedbackContext';
 import { getErrorMessage } from '../lib/errors';
@@ -29,7 +28,9 @@ const markSeenId = (id: number) => {
   }
 };
 
-const fireConfetti = () => {
+// Loaded on demand: the confetti library is only needed at the moment a payout is given.
+const fireConfetti = async () => {
+  const { default: confetti } = await import('canvas-confetti');
   const end = Date.now() + 1800;
   const colors = ['#22c55e', '#f59e0b', '#3b82f6'];
   (function frame() {
@@ -63,7 +64,7 @@ const WithdrawPanel = () => {
     if (newlyGiven) {
       celebratedRef.current = true;
       setCelebrateId(newlyGiven.id);
-      fireConfetti();
+      void fireConfetti();
       markSeenId(newlyGiven.id);
     }
   }, [requests]);

@@ -6,11 +6,10 @@ import { users, roles, schools, commissionRules, payouts } from '../../db/schema
 import { authenticate, requireRole } from '../middleware/auth.js';
 import { logAudit } from '../middleware/audit.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
-import { RequestRejected } from '../lib/httpErrors.js';
+import { RequestRejected, isUniqueViolation } from '../lib/httpErrors.js';
 import { and, desc, eq, ne, count } from 'drizzle-orm';
 
-const isUniquePhoneViolation = (err: unknown): boolean =>
-  typeof err === 'object' && err !== null && (err as { code?: string }).code === '23505';
+const isUniquePhoneViolation = isUniqueViolation;
 
 // Grants the one-time signup bonus (amount snapshotted from the currently active
 // commission rules) to a newly created director/teacher. Later rule changes never

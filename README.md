@@ -30,7 +30,7 @@ FRONTEND_URL=http://localhost:5173
 ```bash
 cd backend
 npm install
-npm run db:migrate   # Drizzle jadvallarini yaratish
+npm run db:migrate   # db/migrations/*.sql fayllarini tartib bilan qo'llaydi (schema_migrations'da qayd etiladi)
 npm run seed         # Rollar va birinchi SuperAdminni yaratish
 ```
 
@@ -60,7 +60,25 @@ npm run dev
 - **SuperAdmin**: Maktablar (S23 kabi kodlar bilan), direktorlar, komissiya qoidalari va to'liq audit monitoringi.
 - **Direktor**: O'z maktabining o'qituvchilari, o'quvchilar ko'rsatkichlari va hisoblangan komissiyalari.
 - **O'qituvchi**: O'z o'quvchilarini ro'yxatdan o'tkazish va o'z komissiyalari holati.
-- **Manager / Admin**: O'quvchilarga qo'ng'iroq holatini (`WAITING`, `ACCEPTED`, `REJECTED`) yangilash, oylik to'lovlarni qayd qilish va komissiyalarni tasdiqlash (`mark-paid`).
+- **Sotuv menejeri**: qo'ng'iroq holatini yuritadi va o'quvchining **birinchi to'lovini** qabul qiladi.
+- **Admin**: birinchi to'lovdan keyin o'quvchi bilan ishlaydi — o'qish holati va keyingi oylik to'lovlar.
+- **Manager**: sotuv menejerlari va adminlarni yaratadi, monitoring (komissiyalarni faqat ko'radi).
+- **CEO** komissiya qoidalarini, kurs narxlarini va yechib olish limitini belgilaydi, so'rovlarni tasdiqlaydi/rad etadi, xato to'lovni bekor qiladi.
+- **Direktor / O'qituvchi**: kutilayotgan mukofot limitga yetganda CEO'ga yechib olish so'rovi yuboradi.
+
+---
+
+## Testlar va CI
+
+```bash
+cd backend
+npm test   # unit + integratsiya testlari; har safar *_test bazasini haqiqiy migratsiyalardan qayta quradi
+```
+
+Postgres `localhost:5432` da (`postgres/postgres`) ishlashi kerak, yoki `TEST_DATABASE_URL` bering (nomi `_test` bilan tugashi shart).
+GitHub Actions (`.github/workflows/ci.yml`) har push'da backend'ni (tsc + testlar) va frontend'ni (tsc + build) tekshiradi.
+
+Heroku'ga chiqarishda `Procfile`dagi `release: npm run db:migrate` kod chiqishidan oldin migratsiyalarni avtomatik qo'llaydi.
 
 ---
 

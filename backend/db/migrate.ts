@@ -1,23 +1,22 @@
 import 'dotenv/config';
-import { drizzle } from 'drizzle-orm/node-postgres';
-import { migrate } from 'drizzle-orm/node-postgres/migrator';
-import pg from 'pg';
+import { runMigrations } from './migrator.js';
 
-const pool = new pg.Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: process.env.DATABASE_URL?.includes('localhost') ? false : { rejectUnauthorized: false },
-});
-
-const db = drizzle(pool);
-
-async function runMigrations() {
-  console.log('Running migrations...');
-  await migrate(db, { migrationsFolder: './drizzle' });
-  console.log('Migrations complete!');
-  await pool.end();
+// npm run db:migrate                       apply pending migrations
+// npm run db:migrate -- --baseline 0013    adopt an existing, hand-migrated database
+const connectionString = process.env['DATABASE_URL'];
+if (!connectionString) {
+  console.error('DATABASE_URL is not set.');
+  process.exit(1);
 }
 
-runMigrations().catch((err) => {
-  console.error('Migration failed:', err);
+const flagIndex = process.argv.indexOf('--baseline');
+const baseline = flagIndex >= 0 ? process.argv[flagIndex + 1] : undefined;
+if (flagIndex >= 0 && !baseline) {
+  console.error('--baseline needs a migration prefix, e.g. --baseline 0013');
+  process.exit(1);
+}
+
+runMigrations({ connectionString, baseline }).catch((err) => {
+  console.error('Migration failed:', err instanceof Error ? err.message : err);
   process.exit(1);
 });

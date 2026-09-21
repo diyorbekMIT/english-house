@@ -27,11 +27,11 @@ const getEligibilityForUser = async (exec: Pick<Db, 'select'>, userId: number, r
 
   const limitUzs = role === 'TEACHER' ? rules?.withdrawLimitTeacherUzs ?? 0 : rules?.withdrawLimitDirectorUzs ?? 0;
 
-  const [userCommissions, userPayouts, userRequests] = await Promise.all([
-    exec.select().from(commissions).where(eq(commissions.userId, userId)),
-    exec.select().from(payouts).where(eq(payouts.receiverId, userId)),
-    exec.select().from(withdrawRequests).where(eq(withdrawRequests.userId, userId)),
-  ]);
+  // Sequential on purpose: inside a transaction these share one connection, and issuing
+  // several queries on it at once is deprecated in the pg driver.
+  const userCommissions = await exec.select().from(commissions).where(eq(commissions.userId, userId));
+  const userPayouts = await exec.select().from(payouts).where(eq(payouts.receiverId, userId));
+  const userRequests = await exec.select().from(withdrawRequests).where(eq(withdrawRequests.userId, userId));
 
   return computeUserWithdrawEligibility(userCommissions, userPayouts, userRequests, limitUzs);
 };

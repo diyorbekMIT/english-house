@@ -1,12 +1,19 @@
+import { lazy, Suspense } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { useAuth } from './contexts/AuthContext';
-import Login from './pages/Login';
-import LandingPage from './pages/LandingPage';
-import SuperAdminDashboard from './pages/SuperAdminDashboard';
-import AdminDashboard from './pages/AdminDashboard';
-import AdminPanelDashboard from './pages/AdminPanelDashboard';
-import DirectorDashboard from './pages/DirectorDashboard';
-import TeacherDashboard from './pages/TeacherDashboard';
+
+// Each screen is its own chunk, so a teacher never downloads the CEO dashboard's code.
+const Login = lazy(() => import('./pages/Login'));
+const LandingPage = lazy(() => import('./pages/LandingPage'));
+const SuperAdminDashboard = lazy(() => import('./pages/SuperAdminDashboard'));
+const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
+const AdminPanelDashboard = lazy(() => import('./pages/AdminPanelDashboard'));
+const DirectorDashboard = lazy(() => import('./pages/DirectorDashboard'));
+const TeacherDashboard = lazy(() => import('./pages/TeacherDashboard'));
+
+const PageLoading = () => (
+  <div className="min-h-screen flex items-center justify-center text-slate-400 text-sm">Yuklanmoqda…</div>
+);
 
 const ROLE_PATHS: Record<string, string> = {
   SUPER_ADMIN: '/superadmin',
@@ -42,6 +49,7 @@ const AppRouter = () => {
   const hasValidRole = user && user.role && ROLE_PATHS[user.role];
 
   return (
+    <Suspense fallback={<PageLoading />}>
     <Routes>
       <Route
         path="/login"
@@ -105,6 +113,7 @@ const AppRouter = () => {
       />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+    </Suspense>
   );
 };
 

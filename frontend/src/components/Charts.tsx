@@ -361,7 +361,6 @@ export const StudyStatusBreakdownChart: React.FC<StudyStatusBreakdownProps> = ({
   studying,
   stopped,
   waiting = 0,
-  accepted = 0,
   title = "O'quv markazida o'qish holati balansi",
   subtitle = "O'quvchilarning markazdagi darslarga qatnashish darajasi",
 }) => {
