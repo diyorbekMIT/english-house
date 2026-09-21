@@ -6,6 +6,12 @@ import type { CommissionRules } from './types';
 import { formatUzs } from '../../lib/format';
 import { AmountInput } from '../../components/AmountInput';
 
+// The API stores percents as basis points (1000 = 10%); the form works in plain
+// percents (10 = 10%) and converts at the boundary.
+const percentToBp = (formValue: string, currentBp: number | undefined): number =>
+  formValue !== '' ? Math.round(Number(formValue) * 100) : currentBp ?? 0;
+const bpToPercentText = (bp: number): string => String(bp / 100);
+
 export const CommissionRulesPage = () => {
   const qc = useQueryClient();
   const { data: rules } = useQuery<CommissionRules>({
@@ -52,10 +58,10 @@ export const CommissionRulesPage = () => {
     e.preventDefault();
     const teacherBonus = Number(form.teacherSignupBonusUzs || rules?.teacherSignupBonusUzs || 0);
     const directorBonus = Number(form.directorSignupBonusUzs || rules?.directorSignupBonusUzs || 0);
-    const teacherPct = Number(form.teacherMonthlyPercent || rules?.teacherMonthlyPercent || 0);
-    const directorPct = Number(form.directorMonthlyPercent || rules?.directorMonthlyPercent || 0);
-    const teacherFirstPct = Number(form.teacherFirstPaymentPercent || rules?.teacherFirstPaymentPercent || 0);
-    const directorFirstPct = Number(form.directorFirstPaymentPercent || rules?.directorFirstPaymentPercent || 0);
+    const teacherPct = percentToBp(form.teacherMonthlyPercent, rules?.teacherMonthlyPercent);
+    const directorPct = percentToBp(form.directorMonthlyPercent, rules?.directorMonthlyPercent);
+    const teacherFirstPct = percentToBp(form.teacherFirstPaymentPercent, rules?.teacherFirstPaymentPercent);
+    const directorFirstPct = percentToBp(form.directorFirstPaymentPercent, rules?.directorFirstPaymentPercent);
     const specialPrice = Number(form.specialPriceUzs || rules?.specialPriceUzs || 0);
     const withdrawLimitTeacher = Number(form.withdrawLimitTeacherUzs || rules?.withdrawLimitTeacherUzs || 0);
     const withdrawLimitDirector = Number(form.withdrawLimitDirectorUzs || rules?.withdrawLimitDirectorUzs || 0);
@@ -68,10 +74,10 @@ export const CommissionRulesPage = () => {
         { label: "O'qituvchi ro'yxat bonusi", value: `${formatUzs(teacherBonus)} UZS` },
         { label: "Direktor ro'yxat bonusi", value: `${formatUzs(directorBonus)} UZS` },
         { label: "Maxsus narx (bonus hisoblash uchun)", value: specialPrice > 0 ? `${formatUzs(specialPrice)} UZS` : "O'rnatilmagan — to'langan haqiqiy summa ishlatiladi" },
-        { label: "O'qituvchi birinchi to'lov foizi", value: `${teacherFirstPct / 100}% (${teacherFirstPct} b.p.)` },
-        { label: "Direktor birinchi to'lov foizi", value: `${directorFirstPct / 100}% (${directorFirstPct} b.p.)` },
-        { label: "O'qituvchi oylik ulushi", value: `${teacherPct / 100}% (${teacherPct} b.p.)` },
-        { label: "Direktor oylik ulushi", value: `${directorPct / 100}% (${directorPct} b.p.)` },
+        { label: "O'qituvchi birinchi to'lov foizi", value: `${teacherFirstPct / 100}%` },
+        { label: "Direktor birinchi to'lov foizi", value: `${directorFirstPct / 100}%` },
+        { label: "O'qituvchi oylik ulushi", value: `${teacherPct / 100}%` },
+        { label: "Direktor oylik ulushi", value: `${directorPct / 100}%` },
         { label: "O'qituvchi yechib olish limiti", value: withdrawLimitTeacher > 0 ? `${formatUzs(withdrawLimitTeacher)} UZS` : "O'chirilgan" },
         { label: "Direktor yechib olish limiti", value: withdrawLimitDirector > 0 ? `${formatUzs(withdrawLimitDirector)} UZS` : "O'chirilgan" },
       ],
@@ -189,23 +195,27 @@ export const CommissionRulesPage = () => {
             </p>
             <div className="space-y-4">
               <div>
-                <label className="label">O'qituvchi birinchi to'lov foizi (1000 = 10%)</label>
+                <label className="label">O'qituvchi birinchi to'lov foizi (%)</label>
                 <input
                   type="number"
                   className="input"
                   min={0}
-                  placeholder={String(rules?.teacherFirstPaymentPercent ?? 2000)}
+                  max={100}
+                  step="0.01"
+                  placeholder={bpToPercentText(rules?.teacherFirstPaymentPercent ?? 2000)}
                   value={form.teacherFirstPaymentPercent}
                   onChange={(e) => setForm((p) => ({ ...p, teacherFirstPaymentPercent: e.target.value.replace('-', '') }))}
                 />
               </div>
               <div>
-                <label className="label">Direktor birinchi to'lov foizi (1000 = 10%)</label>
+                <label className="label">Direktor birinchi to'lov foizi (%)</label>
                 <input
                   type="number"
                   className="input"
                   min={0}
-                  placeholder={String(rules?.directorFirstPaymentPercent ?? 1000)}
+                  max={100}
+                  step="0.01"
+                  placeholder={bpToPercentText(rules?.directorFirstPaymentPercent ?? 1000)}
                   value={form.directorFirstPaymentPercent}
                   onChange={(e) => setForm((p) => ({ ...p, directorFirstPaymentPercent: e.target.value.replace('-', '') }))}
                 />
@@ -217,23 +227,27 @@ export const CommissionRulesPage = () => {
             <p className="text-xs font-semibold text-slate-500 uppercase mb-2">Oylik bonus (kichikroq stavka, FAOL bo'lganda)</p>
             <div className="space-y-4">
               <div>
-                <label className="label">O'qituvchi oylik foizi (1000 = 10%)</label>
+                <label className="label">O'qituvchi oylik foizi (%)</label>
                 <input
                   type="number"
                   className="input"
                   min={0}
-                  placeholder={String(rules?.teacherMonthlyPercent ?? 1000)}
+                  max={100}
+                  step="0.01"
+                  placeholder={bpToPercentText(rules?.teacherMonthlyPercent ?? 1000)}
                   value={form.teacherMonthlyPercent}
                   onChange={(e) => setForm((p) => ({ ...p, teacherMonthlyPercent: e.target.value.replace('-', '') }))}
                 />
               </div>
               <div>
-                <label className="label">Direktor oylik foizi (500 = 5%)</label>
+                <label className="label">Direktor oylik foizi (%)</label>
                 <input
                   type="number"
                   className="input"
                   min={0}
-                  placeholder={String(rules?.directorMonthlyPercent ?? 500)}
+                  max={100}
+                  step="0.01"
+                  placeholder={bpToPercentText(rules?.directorMonthlyPercent ?? 500)}
                   value={form.directorMonthlyPercent}
                   onChange={(e) => setForm((p) => ({ ...p, directorMonthlyPercent: e.target.value.replace('-', '') }))}
                 />
