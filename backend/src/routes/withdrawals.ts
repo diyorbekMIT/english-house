@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { z } from 'zod';
 import { db } from '../../db/client.js';
 import { withdrawRequests, commissionRules, users, roles } from '../../db/schema.js';
 import { authenticate, requireRole } from '../middleware/auth.js';
@@ -10,6 +11,11 @@ import { and, desc, eq, inArray } from 'drizzle-orm';
 
 export const withdrawalsRouter = Router();
 withdrawalsRouter.use(authenticate);
+
+// The CEO can attach a note to every status change. Optional when approving or
+// handing over, required when rejecting (the teacher/director needs to know why).
+const OptionalCommentSchema = z.object({ comment: z.string().trim().max(500).optional() });
+const RejectCommentSchema = z.object({ comment: z.string().trim().min(1, 'Rad etish sababini yozing').max(500) });
 
 const CLAIMED_STATUSES: ('PENDING' | 'VERIFIED' | 'GIVEN')[] = ['PENDING', 'VERIFIED', 'GIVEN'];
 
@@ -98,7 +104,7 @@ withdrawalsRouter.get(
     }
 
     if (status) {
-      conditions.push(eq(withdrawRequests.status, String(status) as 'PENDING' | 'VERIFIED' | 'GIVEN'));
+      conditions.push(eq(withdrawRequests.status, String(status) as 'PENDING' | 'VERIFIED' | 'GIVEN' | 'REJECTED'));
     }
 
     const rows = await db
@@ -112,6 +118,10 @@ withdrawalsRouter.get(
         status: withdrawRequests.status,
         verifiedAt: withdrawRequests.verifiedAt,
         givenAt: withdrawRequests.givenAt,
+        rejectedAt: withdrawRequests.rejectedAt,
+        verifyComment: withdrawRequests.verifyComment,
+        giveComment: withdrawRequests.giveComment,
+        rejectComment: withdrawRequests.rejectComment,
         createdAt: withdrawRequests.createdAt,
       })
       .from(withdrawRequests)
@@ -131,10 +141,13 @@ withdrawalsRouter.patch(
   requireRole('SUPER_ADMIN'),
   asyncHandler(async (req, res) => {
     const id = Number(req.params['id']);
+    const parsed = OptionalCommentSchema.safeParse(req.body ?? {});
+    if (!parsed.success) { res.status(400).json({ error: parsed.error.flatten() }); return; }
+    const comment = parsed.data.comment || null;
 
     const [request] = await db
       .update(withdrawRequests)
-      .set({ status: 'VERIFIED', verifiedAt: new Date(), verifiedByUserId: req.user!.userId, updatedAt: new Date() })
+      .set({ status: 'VERIFIED', verifiedAt: new Date(), verifiedByUserId: req.user!.userId, verifyComment: comment, updatedAt: new Date() })
       .where(and(eq(withdrawRequests.id, id), eq(withdrawRequests.status, 'PENDING')))
       .returning();
 
@@ -146,6 +159,7 @@ withdrawalsRouter.patch(
       entityType: 'withdraw_request',
       entityId: id,
       description: `Withdraw request ${id} verified by SuperAdmin`,
+      details: comment ? { comment } : undefined,
     });
 
     res.json(request);
@@ -158,10 +172,13 @@ withdrawalsRouter.patch(
   requireRole('SUPER_ADMIN'),
   asyncHandler(async (req, res) => {
     const id = Number(req.params['id']);
+    const parsed = OptionalCommentSchema.safeParse(req.body ?? {});
+    if (!parsed.success) { res.status(400).json({ error: parsed.error.flatten() }); return; }
+    const comment = parsed.data.comment || null;
 
     const [request] = await db
       .update(withdrawRequests)
-      .set({ status: 'GIVEN', givenAt: new Date(), givenByUserId: req.user!.userId, updatedAt: new Date() })
+      .set({ status: 'GIVEN', givenAt: new Date(), givenByUserId: req.user!.userId, giveComment: comment, updatedAt: new Date() })
       .where(and(eq(withdrawRequests.id, id), eq(withdrawRequests.status, 'VERIFIED')))
       .returning();
 
@@ -173,6 +190,45 @@ withdrawalsRouter.patch(
       entityType: 'withdraw_request',
       entityId: id,
       description: `Withdraw request ${id} marked as given by SuperAdmin`,
+      details: comment ? { comment } : undefined,
+    });
+
+    res.json(request);
+  }),
+);
+
+// PATCH /withdrawals/:id/reject — CEO turns down a pending request, with a required reason.
+// REJECTED isn't a "claimed" status, so the amount goes straight back to being
+// withdrawable and the teacher/director can request again.
+withdrawalsRouter.patch(
+  '/:id/reject',
+  requireRole('SUPER_ADMIN'),
+  asyncHandler(async (req, res) => {
+    const id = Number(req.params['id']);
+    const parsed = RejectCommentSchema.safeParse(req.body ?? {});
+    if (!parsed.success) { res.status(400).json({ error: parsed.error.flatten() }); return; }
+
+    const [request] = await db
+      .update(withdrawRequests)
+      .set({
+        status: 'REJECTED',
+        rejectedAt: new Date(),
+        rejectedByUserId: req.user!.userId,
+        rejectComment: parsed.data.comment,
+        updatedAt: new Date(),
+      })
+      .where(and(eq(withdrawRequests.id, id), eq(withdrawRequests.status, 'PENDING')))
+      .returning();
+
+    if (!request) { res.status(404).json({ error: 'Pending withdraw request not found' }); return; }
+
+    await logAudit(db, {
+      actorUserId: req.user!.userId,
+      action: 'WITHDRAW_REQUEST_REJECT',
+      entityType: 'withdraw_request',
+      entityId: id,
+      description: `Withdraw request ${id} rejected by SuperAdmin`,
+      details: { comment: parsed.data.comment },
     });
 
     res.json(request);

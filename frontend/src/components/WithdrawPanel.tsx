@@ -92,8 +92,8 @@ const WithdrawPanel = () => {
     requestMutation.mutate();
   };
 
-  const openRequests = requests.filter((r) => r.status !== 'GIVEN');
-  const history = requests.filter((r) => r.status === 'GIVEN');
+  const openRequests = requests.filter((r) => r.status === 'PENDING' || r.status === 'VERIFIED');
+  const history = requests.filter((r) => r.status === 'GIVEN' || r.status === 'REJECTED');
 
   return (
     <div className="card space-y-4">
@@ -133,9 +133,16 @@ const WithdrawPanel = () => {
                 <StatusBadge value={r.status} type="withdraw" />
               </div>
               {r.status === 'VERIFIED' && (
-                <p className="text-xs text-blue-800 mt-1.5">
-                  ✅ So'rovingiz tasdiqlandi! Ofisimizga tashrif buyurib, pulingizni olib ketishingiz mumkin.
-                </p>
+                <>
+                  <p className="text-xs text-blue-800 mt-1.5">
+                    ✅ So'rovingiz tasdiqlandi! Ofisimizga tashrif buyurib, pulingizni olib ketishingiz mumkin.
+                  </p>
+                  {r.verifyComment && (
+                    <p className="text-xs text-blue-900 mt-1 rounded bg-white/70 border border-blue-200 px-2 py-1">
+                      💬 CEO izohi: {r.verifyComment}
+                    </p>
+                  )}
+                </>
               )}
             </div>
           ))}
@@ -146,10 +153,26 @@ const WithdrawPanel = () => {
         <div className="space-y-1.5 pt-2 border-t border-slate-100">
           <p className="text-2xs font-semibold text-slate-500 uppercase">Yechib olish tarixi</p>
           {history.map((r) => (
-            <div key={r.id} className="flex items-center justify-between text-sm py-1">
-              <span className="text-slate-700">{formatUzs(r.amountUzs)} UZS</span>
-              <span className="text-2xs text-slate-400">{r.givenAt ? new Date(r.givenAt).toLocaleDateString() : ''}</span>
-              <StatusBadge value={r.status} type="withdraw" />
+            <div key={r.id} className="py-1.5 border-b border-slate-50 last:border-0">
+              <div className="flex items-center justify-between text-sm">
+                <span className={r.status === 'REJECTED' ? 'text-slate-400 line-through' : 'text-slate-700'}>
+                  {formatUzs(r.amountUzs)} UZS
+                </span>
+                <span className="text-2xs text-slate-400">
+                  {new Date((r.status === 'REJECTED' ? r.rejectedAt : r.givenAt) ?? r.createdAt).toLocaleDateString()}
+                </span>
+                <StatusBadge value={r.status} type="withdraw" />
+              </div>
+              {r.status === 'REJECTED' && r.rejectComment && (
+                <p className="text-xs text-rose-700 mt-1 rounded bg-rose-50 border border-rose-100 px-2 py-1">
+                  ❌ Rad etish sababi: {r.rejectComment}
+                </p>
+              )}
+              {r.status === 'GIVEN' && (r.verifyComment || r.giveComment) && (
+                <p className="text-xs text-slate-500 mt-1">
+                  💬 {[r.verifyComment, r.giveComment].filter(Boolean).join(' · ')}
+                </p>
+              )}
             </div>
           ))}
         </div>

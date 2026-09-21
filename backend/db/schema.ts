@@ -55,6 +55,7 @@ export const withdrawStatusEnum = pgEnum('withdraw_status', [
   'PENDING',
   'VERIFIED',
   'GIVEN',
+  'REJECTED',
 ]);
 
 // ─── Tables ───────────────────────────────────────────────────────────────────
@@ -257,8 +258,9 @@ export const payouts = pgTable(
 // withdrawRequests: a director/teacher cashing out their pending commission
 // balance once it crosses the CEO-set limit. PENDING (requested) -> VERIFIED
 // (CEO approved, told to come collect cash) -> GIVEN (money physically handed
-// over). Kept separate from `payouts` (CEO-initiated credits/debits) since this
-// flow is initiated by the director/teacher themselves.
+// over), or REJECTED by the CEO while still PENDING. Kept separate from `payouts`
+// (CEO-initiated credits/debits) since this flow is initiated by the director/teacher
+// themselves.
 export const withdrawRequests = pgTable(
   'withdraw_requests',
   {
@@ -272,6 +274,13 @@ export const withdrawRequests = pgTable(
     verifiedAt: timestamp('verified_at', { withTimezone: true }),
     givenByUserId: integer('given_by_user_id').references(() => users.id),
     givenAt: timestamp('given_at', { withTimezone: true }),
+    rejectedByUserId: integer('rejected_by_user_id').references(() => users.id),
+    rejectedAt: timestamp('rejected_at', { withTimezone: true }),
+    // CEO's note attached to each status change, kept per step so approving with a
+    // note and later marking it given with another doesn't overwrite the first.
+    verifyComment: text('verify_comment'),
+    giveComment: text('give_comment'),
+    rejectComment: text('reject_comment'),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
   },

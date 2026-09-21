@@ -115,7 +115,8 @@
     cursor: pointer;
     transition: background-color 0.15s;
   }
-  .btn-danger:hover { background: #fef2f2; }
+  .btn-danger:hover:not(:disabled) { background: #fef2f2; }
+  .btn-danger:disabled { opacity: 0.5; cursor: not-allowed; }
 
   /* Form Elements */
   .label {

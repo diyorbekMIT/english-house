@@ -29,6 +29,7 @@ const WITHDRAW_COLORS: Record<string, string> = {
   PENDING: 'background:#FEF9C3;color:#854D0E',
   VERIFIED: 'background:#DBEAFE;color:#1E40AF',
   GIVEN: 'background:#DCFCE7;color:#166534',
+  REJECTED: 'background:#FEE2E2;color:#991B1B',
 };
 
 interface Props {

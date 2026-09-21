@@ -160,9 +160,13 @@ export interface WithdrawRequest {
   userPhone?: string;
   userRole?: 'TEACHER' | 'DIRECTOR';
   amountUzs: number;
-  status: 'PENDING' | 'VERIFIED' | 'GIVEN';
+  status: 'PENDING' | 'VERIFIED' | 'GIVEN' | 'REJECTED';
   verifiedAt?: string | null;
   givenAt?: string | null;
+  rejectedAt?: string | null;
+  verifyComment?: string | null;
+  giveComment?: string | null;
+  rejectComment?: string | null;
   createdAt: string;
 }
 
