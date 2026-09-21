@@ -1,12 +1,13 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { db } from '../../db/client.js';
+import { db, type Db } from '../../db/client.js';
 import { withdrawRequests, commissionRules, commissions, payouts, users, roles } from '../../db/schema.js';
 import { authenticate, requireRole } from '../middleware/auth.js';
 import { logAudit } from '../middleware/audit.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
+import { RequestRejected, isUniqueViolation } from '../lib/httpErrors.js';
 import { computeUserWithdrawEligibility } from '../lib/withdraw.js';
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, sql } from 'drizzle-orm';
 
 export const withdrawalsRouter = Router();
 withdrawalsRouter.use(authenticate);
@@ -16,8 +17,8 @@ withdrawalsRouter.use(authenticate);
 const OptionalCommentSchema = z.object({ comment: z.string().trim().max(500).optional() });
 const RejectCommentSchema = z.object({ comment: z.string().trim().min(1, 'Rad etish sababini yozing').max(500) });
 
-const getEligibilityForUser = async (userId: number, role: 'TEACHER' | 'DIRECTOR') => {
-  const [rules] = await db
+const getEligibilityForUser = async (exec: Pick<Db, 'select'>, userId: number, role: 'TEACHER' | 'DIRECTOR') => {
+  const [rules] = await exec
     .select()
     .from(commissionRules)
     .where(eq(commissionRules.isActive, true))
@@ -27,9 +28,9 @@ const getEligibilityForUser = async (userId: number, role: 'TEACHER' | 'DIRECTOR
   const limitUzs = role === 'TEACHER' ? rules?.withdrawLimitTeacherUzs ?? 0 : rules?.withdrawLimitDirectorUzs ?? 0;
 
   const [userCommissions, userPayouts, userRequests] = await Promise.all([
-    db.select().from(commissions).where(eq(commissions.userId, userId)),
-    db.select().from(payouts).where(eq(payouts.receiverId, userId)),
-    db.select().from(withdrawRequests).where(eq(withdrawRequests.userId, userId)),
+    exec.select().from(commissions).where(eq(commissions.userId, userId)),
+    exec.select().from(payouts).where(eq(payouts.receiverId, userId)),
+    exec.select().from(withdrawRequests).where(eq(withdrawRequests.userId, userId)),
   ]);
 
   return computeUserWithdrawEligibility(userCommissions, userPayouts, userRequests, limitUzs);
@@ -41,42 +42,65 @@ withdrawalsRouter.get(
   requireRole('TEACHER', 'DIRECTOR'),
   asyncHandler(async (req, res) => {
     const role = req.user!.role as 'TEACHER' | 'DIRECTOR';
-    res.json(await getEligibilityForUser(req.user!.userId, role));
+    res.json(await getEligibilityForUser(db, req.user!.userId, role));
   }),
 );
 
-// POST /withdrawals — a director/teacher requests a withdrawal. The amount is
-// always recomputed server-side, never trusted from the client.
+// Arbitrary constant namespace for the per-user advisory lock below.
+const WITHDRAW_LOCK_NAMESPACE = 7001;
+
+// POST /withdrawals — a director/teacher requests a withdrawal. The amount is always
+// recomputed server-side, never trusted from the client. Runs in a transaction behind a
+// per-user advisory lock so a double-click or two open tabs can't both pass the
+// eligibility check and create two requests for the same money.
 withdrawalsRouter.post(
   '/',
   requireRole('TEACHER', 'DIRECTOR'),
   asyncHandler(async (req, res) => {
+    const userId = req.user!.userId;
     const role = req.user!.role as 'TEACHER' | 'DIRECTOR';
-    const eligibility = await getEligibilityForUser(req.user!.userId, role);
 
-    if (eligibility.withdrawableUzs <= 0) {
-      res.status(400).json({ error: "Yechib olish uchun yetarli mukofot yig'ilmagan" });
-      return;
+    try {
+      const request = await db.transaction(async (tx) => {
+        await tx.execute(sql`SELECT pg_advisory_xact_lock(${WITHDRAW_LOCK_NAMESPACE}, ${userId})`);
+
+        const [openRequest] = await tx
+          .select({ id: withdrawRequests.id })
+          .from(withdrawRequests)
+          .where(and(eq(withdrawRequests.userId, userId), eq(withdrawRequests.status, 'PENDING')))
+          .limit(1);
+        if (openRequest) {
+          throw new RequestRejected(409, "Avvalgi so'rovingiz hali ko'rib chiqilmoqda.");
+        }
+
+        const eligibility = await getEligibilityForUser(tx, userId, role);
+        if (eligibility.withdrawableUzs <= 0) {
+          throw new RequestRejected(400, "Yechib olish uchun yetarli mukofot yig'ilmagan");
+        }
+
+        const [created] = await tx
+          .insert(withdrawRequests)
+          .values({ userId, amountUzs: eligibility.withdrawableUzs, status: 'PENDING' })
+          .returning();
+        if (!created) throw new Error('Withdraw request insert returned no row');
+
+        await logAudit(tx, {
+          actorUserId: userId,
+          action: 'WITHDRAW_REQUEST_CREATE',
+          entityType: 'withdraw_request',
+          entityId: created.id,
+          description: `Withdraw request for ${eligibility.withdrawableUzs} UZS created by ${req.user!.role}`,
+        });
+
+        return created;
+      });
+
+      res.status(201).json(request);
+    } catch (err) {
+      if (err instanceof RequestRejected) { res.status(err.status).json({ error: err.message }); return; }
+      if (isUniqueViolation(err)) { res.status(409).json({ error: "Avvalgi so'rovingiz hali ko'rib chiqilmoqda." }); return; }
+      throw err;
     }
-
-    const [request] = await db
-      .insert(withdrawRequests)
-      .values({
-        userId: req.user!.userId,
-        amountUzs: eligibility.withdrawableUzs,
-        status: 'PENDING',
-      })
-      .returning();
-
-    await logAudit(db, {
-      actorUserId: req.user!.userId,
-      action: 'WITHDRAW_REQUEST_CREATE',
-      entityType: 'withdraw_request',
-      entityId: request!.id,
-      description: `Withdraw request for ${eligibility.withdrawableUzs} UZS created by ${req.user!.role}`,
-    });
-
-    res.status(201).json(request);
   }),
 );
 

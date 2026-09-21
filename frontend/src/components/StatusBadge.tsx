@@ -15,6 +15,7 @@ const COMMISSION_COLORS: Record<string, string> = {
   PENDING: 'background:#FEF9C3;color:#854D0E',
   READY_TO_PAY: 'background:#DBEAFE;color:#1e40af',
   PAID: 'background:#DCFCE7;color:#166534',
+  CANCELLED: 'background:#FEE2E2;color:#991B1B',
 };
 const ACTIVE_COLORS: Record<string, string> = {
   true: 'background:#DCFCE7;color:#166534',

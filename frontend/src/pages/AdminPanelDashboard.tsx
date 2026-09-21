@@ -9,6 +9,7 @@ import StatusBadge from '../components/StatusBadge';
 import StudentPaymentHistoryPage from './StudentPaymentHistoryPage';
 import { formatUzs } from '../lib/format';
 import { AmountInput } from '../components/AmountInput';
+import { sameMonthPaymentWarning } from '../lib/payments';
 
 interface Student {
   id: number;
@@ -37,10 +38,16 @@ const PaymentModal = ({ student, onClose }: { student: Student; onClose: () => v
   const [error, setError] = useState('');
   const { confirm, showToast } = useFeedback();
 
+  const { data: existingPayments = [] } = useQuery<{ amountUzs: number; paidForMonth: string; voidedAt?: string | null }[]>({
+    queryKey: ['student-payments', String(student.id)],
+    queryFn: () => api.get(`/students/${student.id}/monthly-payments`).then((r) => r.data),
+  });
+
   const mutation = useMutation({
     mutationFn: (body: { amountUzs: number; paidForMonth: string; paymentMethod?: string; notes?: string }) =>
       api.post(`/students/${student.id}/monthly-payments`, body),
     onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['student-payments', String(student.id)] });
       qc.invalidateQueries({ queryKey: ['admin-students'] });
       showToast({
         type: 'success',
@@ -62,9 +69,11 @@ const PaymentModal = ({ student, onClose }: { student: Student; onClose: () => v
       setError("To'lov summasini to'g'ri kiriting");
       return;
     }
+    const duplicateWarning = sameMonthPaymentWarning(existingPayments, paidForMonth);
     const confirmed = await confirm({
       title: "Oylik to'lovni qabul qilishni tasdiqlaysizmi?",
-      message: "To'lov saqlanadi va to'lovlar tarixiga qo'shiladi.",
+      message: duplicateWarning ?? "To'lov saqlanadi va to'lovlar tarixiga qo'shiladi.",
+      variant: duplicateWarning ? 'warning' : undefined,
       details: [
         { label: "O'quvchi F.I.SH", value: student.fullName },
         { label: "To'lov summasi", value: `${formatUzs(numAmount)} UZS` },

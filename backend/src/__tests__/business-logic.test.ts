@@ -147,6 +147,20 @@ describe('Balance Calculation', () => {
     expect(balance.balanceUzs).toBe(100_000);
   });
 
+  it('cancelled commissions (from voided payments) count toward nothing', () => {
+    const balance = computeBalance(
+      [
+        { amountUzs: 200_000, status: 'CANCELLED' },
+        { amountUzs: 50_000, status: 'PENDING' },
+      ],
+      [],
+    );
+
+    expect(balance.commissionTotalUzs).toBe(50_000);
+    expect(balance.commissionPendingUzs).toBe(50_000);
+    expect(balance.balanceUzs).toBe(50_000);
+  });
+
   it('never lets a claim push pending balance negative', () => {
     const balance = computeBalance(
       [{ amountUzs: 100_000, status: 'PENDING' }],

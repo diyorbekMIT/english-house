@@ -5,7 +5,7 @@ import { students, schools, users, roles, monthlyPayments, courses } from '../..
 import { authenticate, requireRole } from '../middleware/auth.js';
 import { logAudit } from '../middleware/audit.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
-import { and, or, desc, eq, like, inArray, notInArray, SQL } from 'drizzle-orm';
+import { and, or, desc, eq, like, inArray, notInArray, isNull, SQL } from 'drizzle-orm';
 
 export const studentsRouter = Router();
 studentsRouter.use(authenticate);
@@ -197,7 +197,7 @@ studentsRouter.get(
       conditions.push(
         notInArray(
           students.id,
-          db.select({ id: monthlyPayments.studentId }).from(monthlyPayments).where(eq(monthlyPayments.isFirstPayment, true)),
+          db.select({ id: monthlyPayments.studentId }).from(monthlyPayments).where(and(eq(monthlyPayments.isFirstPayment, true), isNull(monthlyPayments.voidedAt))),
         ),
       );
     }
@@ -211,7 +211,7 @@ studentsRouter.get(
       conditions.push(
         inArray(
           students.id,
-          db.select({ id: monthlyPayments.studentId }).from(monthlyPayments).where(eq(monthlyPayments.isFirstPayment, true)),
+          db.select({ id: monthlyPayments.studentId }).from(monthlyPayments).where(and(eq(monthlyPayments.isFirstPayment, true), isNull(monthlyPayments.voidedAt))),
         ),
       );
     }

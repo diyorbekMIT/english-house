@@ -3,7 +3,7 @@ import { db } from '../../db/client.js';
 import { monthlyPayments, students, schools, users } from '../../db/schema.js';
 import { authenticate, requireRole } from '../middleware/auth.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
-import { and, desc, eq, inArray } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull } from 'drizzle-orm';
 
 export const firstPaymentsRouter = Router();
 firstPaymentsRouter.use(authenticate);
@@ -15,7 +15,7 @@ firstPaymentsRouter.get(
   asyncHandler(async (req, res) => {
     const { schoolId, teacherId } = req.query;
 
-    const conditions = [eq(monthlyPayments.isFirstPayment, true)];
+    const conditions = [eq(monthlyPayments.isFirstPayment, true), isNull(monthlyPayments.voidedAt)];
     if (schoolId) conditions.push(eq(students.schoolId, Number(schoolId)));
     if (teacherId) conditions.push(eq(students.teacherId, Number(teacherId)));
 

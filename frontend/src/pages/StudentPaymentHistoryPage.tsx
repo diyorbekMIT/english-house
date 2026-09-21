@@ -1,9 +1,13 @@
-import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
+import { useFeedback } from '../contexts/FeedbackContext';
 import StatusBadge from '../components/StatusBadge';
+import CommentModal from '../components/CommentModal';
 import { formatUzs } from '../lib/format';
+import { getErrorMessage } from '../lib/errors';
 
 interface StudentDetail {
   id: number;
@@ -27,6 +31,8 @@ interface Payment {
   createdByUserId: number;
   createdByName?: string | null;
   isFirstPayment?: boolean;
+  voidedAt?: string | null;
+  voidReason?: string | null;
   createdAt: string;
 }
 
@@ -40,6 +46,9 @@ export const StudentPaymentHistoryPage = () => {
   const { studentId } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const qc = useQueryClient();
+  const { showToast } = useFeedback();
+  const [voiding, setVoiding] = useState<Payment | null>(null);
 
   const { data: student, isLoading: studentLoading } = useQuery<StudentDetail>({
     queryKey: ['student', studentId],
@@ -51,7 +60,29 @@ export const StudentPaymentHistoryPage = () => {
     queryFn: () => api.get(`/students/${studentId}/monthly-payments`).then((r) => r.data),
   });
 
-  const totalPaidUzs = payments.reduce((sum, p) => sum + p.amountUzs, 0);
+  const activePayments = payments.filter((p) => !p.voidedAt);
+  const totalPaidUzs = activePayments.reduce((sum, p) => sum + p.amountUzs, 0);
+
+  const voidMutation = useMutation({
+    mutationFn: ({ id, reason }: { id: number; reason: string }) =>
+      api.patch(`/students/${studentId}/monthly-payments/${id}/void`, { reason }),
+    onSuccess: () => {
+      ['student-payments', 'student', 'students', 'admin-students', 'commissions', 'payout-balances', 'first-payments'].forEach((key) =>
+        qc.invalidateQueries({ queryKey: [key] }),
+      );
+      setVoiding(null);
+      showToast({
+        type: 'success',
+        title: "To'lov bekor qilindi",
+        message: "To'lovdan hisoblangan komissiyalar ham bekor qilindi.",
+      });
+    },
+    onError: (err: unknown) => {
+      showToast({ type: 'error', title: 'Xatolik', message: getErrorMessage(err, "To'lovni bekor qilishda xatolik yuz berdi.") });
+    },
+  });
+
+  const isCeo = user?.role === 'SUPER_ADMIN';
 
   return (
     <div className="space-y-6 max-w-4xl">
@@ -105,7 +136,7 @@ export const StudentPaymentHistoryPage = () => {
           <span className="text-2xs font-semibold text-slate-500 uppercase tracking-wider block">
             Jami to'lovlar soni
           </span>
-          <p className="text-2xl font-bold text-slate-900 mt-1">{payments.length}</p>
+          <p className="text-2xl font-bold text-slate-900 mt-1">{activePayments.length}</p>
         </div>
         <div className="stat-card border-emerald-200 bg-emerald-50/30 col-span-2 sm:col-span-1">
           <span className="text-2xs font-semibold text-emerald-800 uppercase tracking-wider block">
@@ -127,17 +158,26 @@ export const StudentPaymentHistoryPage = () => {
                 <th>Izoh</th>
                 <th>Kim qabul qildi</th>
                 <th>Sana</th>
+                {isCeo && <th>Amal</th>}
               </tr>
             </thead>
             <tbody>
               {paymentsLoading && (
-                <tr><td colSpan={6} className="text-center py-6 text-slate-400">Yuklanmoqda…</td></tr>
+                <tr><td colSpan={isCeo ? 7 : 6} className="text-center py-6 text-slate-400">Yuklanmoqda…</td></tr>
               )}
               {payments.map((p) => (
-                <tr key={p.id} className={p.isFirstPayment ? 'bg-emerald-50/50' : undefined}>
+                <tr
+                  key={p.id}
+                  className={p.voidedAt ? 'bg-slate-50 text-slate-400' : p.isFirstPayment ? 'bg-emerald-50/50' : undefined}
+                >
                   <td className="font-semibold text-slate-900">
                     <div className="flex items-center gap-1.5">
-                      <span>{p.paidForMonth}</span>
+                      <span className={p.voidedAt ? 'line-through' : undefined}>{p.paidForMonth}</span>
+                      {p.voidedAt && (
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded-full bg-rose-100 text-rose-800 border border-rose-300 text-[10px] font-bold">
+                          Bekor qilingan
+                        </span>
+                      )}
                       {p.isFirstPayment && (
                         <span className="inline-flex items-center px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300 text-[10px] font-bold">
                           ★ Birinchi to'lov
@@ -145,24 +185,62 @@ export const StudentPaymentHistoryPage = () => {
                       )}
                     </div>
                   </td>
-                  <td className="font-bold text-emerald-700">{formatUzs(p.amountUzs)} UZS</td>
+                  <td className={`font-bold ${p.voidedAt ? 'text-slate-400 line-through' : 'text-emerald-700'}`}>
+                    {formatUzs(p.amountUzs)} UZS
+                  </td>
                   <td className="text-xs text-slate-600">
                     {p.paymentMethod ? PAYMENT_METHOD_LABELS[p.paymentMethod] ?? p.paymentMethod : '—'}
                   </td>
-                  <td className="text-xs text-slate-500 max-w-xs truncate" title={p.notes ?? undefined}>
-                    {p.notes || '—'}
+                  <td className="text-xs text-slate-500 max-w-xs" title={p.notes ?? undefined}>
+                    {p.voidedAt ? (
+                      <span className="text-rose-700">Sabab: {p.voidReason ?? '—'}</span>
+                    ) : (
+                      <span className="truncate block">{p.notes || '—'}</span>
+                    )}
                   </td>
                   <td className="text-xs text-slate-700">{p.createdByName ?? '—'}</td>
                   <td className="text-slate-400 text-xs">{new Date(p.paidAt).toLocaleDateString('uz-UZ')}</td>
+                  {isCeo && (
+                    <td>
+                      {!p.voidedAt && (
+                        <button onClick={() => setVoiding(p)} className="btn-danger text-xs px-2 py-1">
+                          Bekor qilish
+                        </button>
+                      )}
+                    </td>
+                  )}
                 </tr>
               ))}
               {!paymentsLoading && payments.length === 0 && (
-                <tr><td colSpan={6} className="text-center py-8 text-slate-400">To'lovlar tarixi bo'sh</td></tr>
+                <tr><td colSpan={isCeo ? 7 : 6} className="text-center py-8 text-slate-400">To'lovlar tarixi bo'sh</td></tr>
               )}
             </tbody>
           </table>
         </div>
       </div>
+
+      {voiding && (
+        <CommentModal
+          title="To'lovni bekor qilasizmi?"
+          message="To'lov tarixda saqlanadi, lekin daromad va bonuslarga hisoblanmaydi. Undan hisoblangan o'qituvchi va direktor komissiyalari ham bekor qilinadi."
+          rows={[
+            { label: "O'quvchi", value: student?.fullName ?? '—' },
+            { label: 'Oy', value: voiding.paidForMonth },
+            { label: 'Summa', value: `${formatUzs(voiding.amountUzs)} UZS` },
+            ...(voiding.isFirstPayment
+              ? [{ label: 'Diqqat', value: "Birinchi to'lov — o'quvchi FAOL EMAS holatiga qaytadi" }]
+              : []),
+          ]}
+          commentLabel="Bekor qilish sababi (majburiy)"
+          placeholder="Masalan: ikki marta kiritilgan"
+          required
+          confirmText="Ha, bekor qilish"
+          danger
+          isPending={voidMutation.isPending}
+          onClose={() => setVoiding(null)}
+          onSubmit={(reason) => voidMutation.mutate({ id: voiding.id, reason })}
+        />
+      )}
     </div>
   );
 };

@@ -5,7 +5,7 @@ import { commissions } from '../../db/schema.js';
 import { authenticate, requireRole } from '../middleware/auth.js';
 import { logAudit } from '../middleware/audit.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, inArray, ne } from 'drizzle-orm';
 
 export const commissionsRouter = Router();
 commissionsRouter.use(authenticate);
@@ -29,7 +29,7 @@ commissionsRouter.get(
     }
 
     if (status) {
-      conditions.push(eq(commissions.status, String(status) as 'PENDING' | 'READY_TO_PAY' | 'PAID'));
+      conditions.push(eq(commissions.status, String(status) as 'PENDING' | 'READY_TO_PAY' | 'PAID' | 'CANCELLED'));
     }
 
     const rows = await db
@@ -42,20 +42,24 @@ commissionsRouter.get(
   }),
 );
 
-// PATCH /commissions/:id/mark-paid
+// PATCH /commissions/:id/mark-paid — CEO only. Marking a commission PAID moves money
+// out of a teacher/director's pending balance, which the withdraw flow otherwise gates
+// behind the CEO-set limit, so no other role may do it. Only still-open commissions can
+// be marked (not already PAID, not CANCELLED by a voided payment).
 commissionsRouter.patch(
   '/:id/mark-paid',
-  requireRole('SALES_MANAGER', 'SUPER_ADMIN', 'MANAGER'),
+  requireRole('SUPER_ADMIN'),
   asyncHandler(async (req, res) => {
     const id = Number(req.params['id']);
+    const payable: ('PENDING' | 'READY_TO_PAY')[] = ['PENDING', 'READY_TO_PAY'];
 
     const [commission] = await db
       .update(commissions)
       .set({ status: 'PAID', paidAt: new Date(), updatedAt: new Date() })
-      .where(eq(commissions.id, id))
+      .where(and(eq(commissions.id, id), inArray(commissions.status, payable)))
       .returning();
 
-    if (!commission) { res.status(404).json({ error: 'Not found' }); return; }
+    if (!commission) { res.status(404).json({ error: 'Payable commission not found' }); return; }
 
     await logAudit(db, {
       actorUserId: req.user!.userId,
@@ -85,10 +89,10 @@ commissionsRouter.patch(
         paidAt: parsed.data.status === 'PAID' ? new Date() : null,
         updatedAt: new Date(),
       })
-      .where(eq(commissions.id, id))
+      .where(and(eq(commissions.id, id), ne(commissions.status, 'CANCELLED')))
       .returning();
 
-    if (!commission) { res.status(404).json({ error: 'Not found' }); return; }
+    if (!commission) { res.status(404).json({ error: 'Not found (or cancelled)' }); return; }
 
     await logAudit(db, {
       actorUserId: req.user!.userId,

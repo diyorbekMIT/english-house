@@ -27,10 +27,12 @@ interface PayoutLike {
 // commissions ledger (tracked separately in withdraw history), so it stops counting
 // as pending, and drops out of the balance entirely rather than moving to "paid".
 export const computeBalance = (
-  userCommissions: CommissionLike[],
+  allUserCommissions: CommissionLike[],
   userPayouts: PayoutLike[],
   claimedWithdrawUzs = 0,
 ): UserBalance => {
+  // CANCELLED commissions belong to voided payments and never count toward anything.
+  const userCommissions = allUserCommissions.filter((c) => c.status !== 'CANCELLED');
   const commissionTotalUzs = userCommissions.reduce((sum, c) => sum + c.amountUzs, 0);
   const commissionPaidUzs = userCommissions
     .filter((c) => c.status === 'PAID')

@@ -8,11 +8,12 @@ import {
   users,
   roles,
   commissions,
+  withdrawRequests,
 } from '../../db/schema.js';
 import { authenticate, requireRole } from '../middleware/auth.js';
-import { getUserBalance } from '../lib/balance.js';
+import { getUserBalance, computeBalance } from '../lib/balance.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
-import { desc, eq, and } from 'drizzle-orm';
+import { desc, eq, and, isNull, ne, inArray } from 'drizzle-orm';
 
 export const analyticsRouter = Router();
 analyticsRouter.use(authenticate);
@@ -36,9 +37,10 @@ analyticsRouter.get('/ceo-summary', requireRole('SUPER_ADMIN'), asyncHandler(asy
 
   // 1. All data from DB
   const allStudents = await db.select().from(students);
-  const allPayments = await db.select().from(monthlyPayments);
+  // Voided payments and their cancelled commissions are corrections, not revenue.
+  const allPayments = await db.select().from(monthlyPayments).where(isNull(monthlyPayments.voidedAt));
   const allSchools = await db.select().from(schools);
-  const allCommissions = await db.select().from(commissions);
+  const allCommissions = await db.select().from(commissions).where(ne(commissions.status, 'CANCELLED'));
 
   const allUsers = await db
     .select({
@@ -330,7 +332,19 @@ analyticsRouter.get('/ceo-summary', requireRole('SUPER_ADMIN'), asyncHandler(asy
     };
   });
 
-  // 9. Teachers summary
+  // 9. Teachers summary. Pending is computed with the same rule the teacher's own
+  // dashboard uses (verified/given withdrawals no longer count as pending), so the CEO
+  // and the teacher never see different numbers for the same person.
+  const confirmedStatuses: ('VERIFIED' | 'GIVEN')[] = ['VERIFIED', 'GIVEN'];
+  const confirmedWithdrawals = await db
+    .select({ userId: withdrawRequests.userId, amountUzs: withdrawRequests.amountUzs })
+    .from(withdrawRequests)
+    .where(inArray(withdrawRequests.status, confirmedStatuses));
+  const confirmedByUser = new Map<number, number>();
+  for (const w of confirmedWithdrawals) {
+    confirmedByUser.set(w.userId, (confirmedByUser.get(w.userId) ?? 0) + w.amountUzs);
+  }
+
   const teacherUsers = allUsers.filter((u) => u.roleName === 'TEACHER');
   const teachersSummary = teacherUsers.map((t) => {
     const teacherStudents = allStudents.filter((s) => s.teacherId === t.id);
@@ -338,11 +352,11 @@ analyticsRouter.get('/ceo-summary', requireRole('SUPER_ADMIN'), asyncHandler(asy
     const teacherStudentIds = new Set(teacherStudents.map((s) => s.id));
     const paidCount = Array.from(paidStudentIds).filter((id) => teacherStudentIds.has(id)).length;
     const teacherComms = allCommissions.filter((c) => c.userId === t.id);
-    const totalCommission = teacherComms.reduce((sum, c) => sum + c.amountUzs, 0);
-    const paidCommission = teacherComms
-      .filter((c) => c.status === 'PAID')
-      .reduce((sum, c) => sum + c.amountUzs, 0);
-    const pendingCommission = totalCommission - paidCommission;
+    const { commissionTotalUzs: totalCommission, commissionPendingUzs: pendingCommission } = computeBalance(
+      teacherComms,
+      [],
+      confirmedByUser.get(t.id) ?? 0,
+    );
     const school = allSchools.find((sch) => sch.id === t.schoolId);
 
     return {

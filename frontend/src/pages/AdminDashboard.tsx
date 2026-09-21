@@ -11,6 +11,7 @@ import FirstPaymentsPage from './FirstPaymentsPage';
 import { formatUzs } from '../lib/format';
 import { AmountInput } from '../components/AmountInput';
 import { getErrorMessage } from '../lib/errors';
+import { sameMonthPaymentWarning } from '../lib/payments';
 
 interface Student {
   id: number;
@@ -60,6 +61,11 @@ const PaymentModal = ({ student, onClose }: { student: Student; onClose: () => v
   const [error, setError] = useState('');
   const { confirm, showToast } = useFeedback();
 
+  const { data: existingPayments = [] } = useQuery<{ amountUzs: number; paidForMonth: string; voidedAt?: string | null }[]>({
+    queryKey: ['student-payments', String(student.id)],
+    queryFn: () => api.get(`/students/${student.id}/monthly-payments`).then((r) => r.data),
+  });
+
   const mutation = useMutation({
     mutationFn: (body: {
       amountUzs: number;
@@ -68,6 +74,7 @@ const PaymentModal = ({ student, onClose }: { student: Student; onClose: () => v
       notes?: string;
     }) => api.post(`/students/${student.id}/monthly-payments`, body),
     onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['student-payments', String(student.id)] });
       qc.invalidateQueries({ queryKey: ['students'] });
       qc.invalidateQueries({ queryKey: ['commissions'] });
       qc.invalidateQueries({ queryKey: ['teacher-students'] });
@@ -92,9 +99,11 @@ const PaymentModal = ({ student, onClose }: { student: Student; onClose: () => v
       return;
     }
 
+    const duplicateWarning = sameMonthPaymentWarning(existingPayments, paidForMonth);
     const confirmed = await confirm({
       title: "Oylik to'lovni qabul qilishni tasdiqlaysizmi?",
-      message: "To'lov kiritilgach, ushbu o'quvchini jalb qilgan o'qituvchi va direktor hisobiga avtomatik komissiya yoziladi.",
+      message: duplicateWarning ?? "To'lov kiritilgach, ushbu o'quvchini jalb qilgan o'qituvchi va direktor hisobiga avtomatik komissiya yoziladi.",
+      variant: duplicateWarning ? 'warning' : undefined,
       details: [
         { label: "O'quvchi F.I.SH", value: student.fullName },
         { label: "Telefon", value: student.phone },
@@ -667,52 +676,15 @@ const StudentsPage = () => {
 
 // ── Commissions Page ───────────────────────────────────────────────────────────
 const AdminCommissionsPage = () => {
-  const qc = useQueryClient();
   const { data: commissions = [], isLoading } = useQuery<Commission[]>({
     queryKey: ['commissions'],
     queryFn: () => api.get('/commissions').then((r) => r.data),
   });
-  const { confirm, showToast } = useFeedback();
-
-  const markPaidMutation = useMutation({
-    mutationFn: (id: number) => api.patch(`/commissions/${id}/mark-paid`, {}),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['commissions'] }),
-  });
-
-  const handleMarkPaid = async (c: Commission) => {
-    const confirmed = await confirm({
-      title: "Komissiyani to'langan deb tasdiqlash",
-      message: "Diqqat: Ushbu komissiya to'langan deb belgilangach, qaytarib bo'lmaydi.",
-      details: [
-        { label: "Komissiya ID", value: `#${c.id}` },
-        { label: "Foydalanuvchi ID", value: c.userId },
-        { label: "To'lov summasi", value: `${formatUzs(c.amountUzs)} UZS` },
-        { label: "Komissiya turi", value: c.type },
-      ],
-      confirmText: "Ha, to'langan deb belgilash",
-    });
-    if (!confirmed) return;
-
-    markPaidMutation.mutate(c.id, {
-      onSuccess: () => {
-        showToast({
-          type: 'success',
-          title: "Komissiya to'landi",
-          message: `#${c.id} raqamli komissiya muvaffaqiyatli to'langan deb belgilandi!`,
-        });
-      },
-      onError: () => {
-        showToast({
-          type: 'error',
-          title: 'Xatolik',
-          message: 'Komissiyani tasdiqlashda xatolik yuz berdi.',
-        });
-      },
-    });
-  };
-
-  const total = commissions.reduce((acc, c) => acc + c.amountUzs, 0);
-  const pending = commissions.filter((c) => c.status !== 'PAID').reduce((acc, c) => acc + c.amountUzs, 0);
+  // Read-only monitoring. Marking a commission paid is CEO-only: payouts go through the
+  // CEO-approved withdraw flow, so no other role may move money out of the pending balance.
+  const counted = commissions.filter((c) => c.status !== 'CANCELLED');
+  const total = counted.reduce((acc, c) => acc + c.amountUzs, 0);
+  const pending = counted.filter((c) => c.status !== 'PAID').reduce((acc, c) => acc + c.amountUzs, 0);
 
   return (
     <div className="space-y-6 max-w-6xl">
@@ -743,11 +715,10 @@ const AdminCommissionsPage = () => {
                 <th>Summasi</th>
                 <th>Holati</th>
                 <th>Sana</th>
-                <th>Amal</th>
               </tr>
             </thead>
             <tbody>
-              {isLoading && <tr><td colSpan={7} className="text-center py-6 text-slate-400">Yuklanmoqda…</td></tr>}
+              {isLoading && <tr><td colSpan={6} className="text-center py-6 text-slate-400">Yuklanmoqda…</td></tr>}
               {commissions.map((c) => (
                 <tr key={c.id}>
                   <td className="font-mono text-xs text-slate-500">#{c.id}</td>
@@ -756,23 +727,10 @@ const AdminCommissionsPage = () => {
                   <td className="font-bold text-slate-900">{formatUzs(c.amountUzs)} UZS</td>
                   <td><StatusBadge value={c.status} type="commission" /></td>
                   <td className="text-slate-400 text-xs">{new Date(c.createdAt).toLocaleDateString()}</td>
-                  <td>
-                    {c.status !== 'PAID' ? (
-                      <button
-                        onClick={() => handleMarkPaid(c)}
-                        disabled={markPaidMutation.isPending}
-                        className="btn-secondary text-xs py-1 px-2.5"
-                      >
-                        To'landi deb belgilash
-                      </button>
-                    ) : (
-                      <span className="text-xs text-emerald-600 font-semibold">✓ To'langan</span>
-                    )}
-                  </td>
                 </tr>
               ))}
               {!isLoading && commissions.length === 0 && (
-                <tr><td colSpan={7} className="text-center py-8 text-slate-400">Komissiyalar mavjud emas</td></tr>
+                <tr><td colSpan={6} className="text-center py-8 text-slate-400">Komissiyalar mavjud emas</td></tr>
               )}
             </tbody>
           </table>

@@ -10,7 +10,9 @@ export interface AuditParams {
   details?: Record<string, unknown>;
 }
 
-export const logAudit = async (db: Db, params: AuditParams): Promise<void> => {
+// Accepts either the pool-backed db or a transaction, so callers can write the audit
+// row inside the same transaction as the change it describes.
+export const logAudit = async (db: Pick<Db, 'insert'>, params: AuditParams): Promise<void> => {
   await db.insert(auditLogs).values({
     actorUserId: params.actorUserId,
     action: params.action,

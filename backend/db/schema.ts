@@ -1,3 +1,4 @@
+import { sql } from 'drizzle-orm';
 import {
   bigserial,
   boolean,
@@ -37,6 +38,7 @@ export const commissionStatusEnum = pgEnum('commission_status', [
   'PENDING',
   'READY_TO_PAY',
   'PAID',
+  'CANCELLED', // its payment was voided; never counts toward any balance
 ]);
 
 export const payoutTypeEnum = pgEnum('payout_type', [
@@ -168,10 +170,19 @@ export const monthlyPayments = pgTable(
     isFirstPayment: boolean('is_first_payment').notNull().default(false),
     notes: text('notes'),
     meta: jsonb('meta'),
+    // A voided payment stays on record (audit trail) but no longer counts as revenue,
+    // as a "first payment", or as a source of commissions.
+    voidedAt: timestamp('voided_at', { withTimezone: true }),
+    voidedByUserId: integer('voided_by_user_id').references(() => users.id),
+    voidReason: text('void_reason'),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   },
   (t) => ({
     isFirstPaymentIdx: index('monthly_payments_is_first_payment_idx').on(t.isFirstPayment),
+    studentMonthIdx: index('monthly_payments_student_month_idx').on(t.studentId, t.paidForMonth),
+    oneFirstPerStudentIdx: uniqueIndex('monthly_payments_one_first_per_student_idx')
+      .on(t.studentId)
+      .where(sql`${t.isFirstPayment} AND ${t.voidedAt} IS NULL`),
   }),
 );
 
@@ -226,6 +237,11 @@ export const commissions = pgTable(
     userIdIdx: index('commissions_user_id_idx').on(t.userId),
     studentIdIdx: index('commissions_student_id_idx').on(t.studentId),
     statusIdx: index('commissions_status_idx').on(t.status),
+    userStatusIdx: index('commissions_user_status_idx').on(t.userId, t.status),
+    paymentIdIdx: index('commissions_monthly_payment_id_idx').on(t.monthlyPaymentId),
+    paymentUserUniqueIdx: uniqueIndex('commissions_payment_user_unique_idx')
+      .on(t.monthlyPaymentId, t.userId)
+      .where(sql`${t.monthlyPaymentId} IS NOT NULL`),
   }),
 );
 
@@ -287,6 +303,9 @@ export const withdrawRequests = pgTable(
   (t) => ({
     userIdIdx: index('withdraw_requests_user_id_idx').on(t.userId),
     statusIdx: index('withdraw_requests_status_idx').on(t.status),
+    onePendingPerUserIdx: uniqueIndex('withdraw_requests_one_pending_per_user_idx')
+      .on(t.userId)
+      .where(sql`${t.status} = 'PENDING'`),
   }),
 );
 
@@ -304,6 +323,7 @@ export const auditLogs = pgTable(
   },
   (t) => ({
     actorIdx: index('audit_logs_actor_user_id_idx').on(t.actorUserId),
+    actionCreatedIdx: index('audit_logs_action_created_idx').on(t.action, t.createdAt),
     entityTypeIdx: index('audit_logs_entity_type_idx').on(t.entityType),
     entityIdIdx: index('audit_logs_entity_id_idx').on(t.entityId),
   }),

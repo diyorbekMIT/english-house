@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/api';
 import { useFeedback } from '../../contexts/FeedbackContext';
 import StatusBadge from '../../components/StatusBadge';
+import CommentModal from '../../components/CommentModal';
 import { getErrorMessage } from '../../lib/errors';
 import { formatUzs } from '../../lib/format';
 import type { WithdrawRequest } from './types';
@@ -38,76 +39,6 @@ const ACTION_COPY: Record<
     required: true,
     danger: true,
   },
-};
-
-const ActionModal = ({
-  action,
-  request,
-  isPending,
-  onSubmit,
-  onClose,
-}: {
-  action: Action;
-  request: WithdrawRequest;
-  isPending: boolean;
-  onSubmit: (comment: string) => void;
-  onClose: () => void;
-}) => {
-  const copy = ACTION_COPY[action];
-  const [comment, setComment] = useState('');
-  const trimmed = comment.trim();
-  const canSubmit = !isPending && (!copy.required || trimmed.length > 0);
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
-      <div className="card w-full max-w-md space-y-4 shadow-xl" onClick={(e) => e.stopPropagation()}>
-        <div>
-          <h2 className="section-title">{copy.title}</h2>
-          <p className="text-xs text-slate-500 mt-1">{copy.message}</p>
-        </div>
-
-        <div className="rounded-lg bg-slate-50 border border-slate-200 p-3 text-sm space-y-1">
-          <div className="flex justify-between gap-3">
-            <span className="text-slate-500">Foydalanuvchi</span>
-            <span className="font-semibold text-slate-900 text-right">
-              {request.userFullName ?? `#${request.userId}`} ({request.userRole === 'DIRECTOR' ? 'Direktor' : "O'qituvchi"})
-            </span>
-          </div>
-          <div className="flex justify-between gap-3">
-            <span className="text-slate-500">Miqdori</span>
-            <span className="font-bold text-slate-900">{formatUzs(request.amountUzs)} UZS</span>
-          </div>
-        </div>
-
-        <div>
-          <label className="label">{copy.commentLabel}</label>
-          <textarea
-            className="input min-h-[80px]"
-            rows={3}
-            maxLength={500}
-            placeholder={copy.placeholder}
-            value={comment}
-            onChange={(e) => setComment(e.target.value)}
-            autoFocus
-          />
-          <p className="text-2xs text-slate-400 mt-1 text-right">{comment.length}/500</p>
-        </div>
-
-        <div className="flex gap-2 pt-1">
-          <button
-            onClick={() => onSubmit(trimmed)}
-            disabled={!canSubmit}
-            className={`flex-1 ${copy.danger ? 'btn-danger' : 'btn-primary'}`}
-          >
-            {isPending ? 'Yuborilmoqda…' : copy.confirmText}
-          </button>
-          <button onClick={onClose} className="btn-secondary" disabled={isPending}>
-            Bekor qilish
-          </button>
-        </div>
-      </div>
-    </div>
-  );
 };
 
 const CommentLine = ({ label, text }: { label: string; text?: string | null }) =>
@@ -282,9 +213,21 @@ export const WithdrawalsPage = () => {
       </div>
 
       {active && (
-        <ActionModal
-          action={active.action}
-          request={active.request}
+        <CommentModal
+          title={ACTION_COPY[active.action].title}
+          message={ACTION_COPY[active.action].message}
+          rows={[
+            {
+              label: 'Foydalanuvchi',
+              value: `${active.request.userFullName ?? `#${active.request.userId}`} (${roleLabel(active.request)})`,
+            },
+            { label: 'Miqdori', value: `${formatUzs(active.request.amountUzs)} UZS` },
+          ]}
+          commentLabel={ACTION_COPY[active.action].commentLabel}
+          placeholder={ACTION_COPY[active.action].placeholder}
+          required={ACTION_COPY[active.action].required}
+          confirmText={ACTION_COPY[active.action].confirmText}
+          danger={ACTION_COPY[active.action].danger}
           isPending={actionMutation.isPending}
           onClose={() => setActive(null)}
           onSubmit={(comment) => actionMutation.mutate({ id: active.request.id, action: active.action, comment })}
