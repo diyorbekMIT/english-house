@@ -113,6 +113,19 @@ export const FeedbackProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }
   }, [removeToast]);
 
+  // api.ts can't reach React state, so it announces 403s as a window event.
+  useEffect(() => {
+    let lastShown = 0;
+    const onForbidden = () => {
+      const now = Date.now();
+      if (now - lastShown < 3000) return; // several parallel requests can fail together
+      lastShown = now;
+      showToast({ type: 'error', title: "Ruxsat yo'q", message: "Bu amalni bajarish uchun sizda ruxsat yo'q." });
+    };
+    window.addEventListener('api:forbidden', onForbidden);
+    return () => window.removeEventListener('api:forbidden', onForbidden);
+  }, [showToast]);
+
   return (
     <FeedbackContext.Provider value={{ confirm, showToast }}>
       {children}

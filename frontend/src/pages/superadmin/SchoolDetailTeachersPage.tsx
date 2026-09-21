@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { api } from '../../lib/api';
 import StatusBadge from '../../components/StatusBadge';
 import type { School, User, Student } from './types';
+import UserActions from '../../components/UserActions';
 
 export const SchoolDetailTeachersPage = () => {
   const { schoolId } = useParams<{ schoolId: string }>();
@@ -162,6 +163,7 @@ export const SchoolDetailTeachersPage = () => {
                       >
                         O'quvchilarni ko'rish ({tStudents.length}) →
                       </Link>
+                      <div className="mt-1.5"><UserActions user={t} /></div>
                     </td>
                   </tr>
                 );

@@ -1,4 +1,3 @@
-import { useEffect } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { useAuth } from './contexts/AuthContext';
 import Login from './pages/Login';
@@ -25,17 +24,15 @@ const ProtectedRoute = ({
   children: React.ReactNode;
   allowedRoles: string[];
 }) => {
-  const { user, logout } = useAuth();
-  const isUnauthorized = !user || !user.token || !allowedRoles.includes(user.role);
+  const { user } = useAuth();
 
-  useEffect(() => {
-    if (isUnauthorized && user) {
-      logout();
-    }
-  }, [isUnauthorized, user, logout]);
-
-  if (isUnauthorized) {
+  if (!user || !user.token) {
     return <Navigate to="/login" replace />;
+  }
+  // Signed in but opened another role's URL: send them to their own dashboard rather
+  // than logging them out. (The API enforces access regardless — this is only UX.)
+  if (!allowedRoles.includes(user.role)) {
+    return <Navigate to={ROLE_PATHS[user.role] ?? '/login'} replace />;
   }
   return <>{children}</>;
 };

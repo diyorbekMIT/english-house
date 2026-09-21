@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { getErrorMessage } from '../lib/errors';
 
 const ROLE_PATHS: Record<string, string> = {
   SUPER_ADMIN: '/superadmin',
@@ -14,9 +15,19 @@ const ROLE_PATHS: Record<string, string> = {
 const Login = () => {
   const { login } = useAuth();
   const navigate = useNavigate();
-  const [phone, setPhone] = useState('+998900000001');
+  const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  // api.ts flags a dead session right before redirecting here; show it once.
+  const [sessionExpired] = useState(() => {
+    try {
+      const flag = sessionStorage.getItem('session_expired') === '1';
+      sessionStorage.removeItem('session_expired');
+      return flag;
+    } catch {
+      return false;
+    }
+  });
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: FormEvent) => {
@@ -28,7 +39,13 @@ const Login = () => {
       const target = ROLE_PATHS[authUser.role] ?? '/';
       navigate(target, { replace: true });
     } catch (err: unknown) {
-      setError("Telefon raqam yoki parol noto'g'ri");
+      const status = (err as { response?: { status?: number } })?.response?.status;
+      if (status === 401) {
+        setError("Telefon raqam yoki parol noto'g'ri");
+      } else {
+        // Unreachable server, rate limit (429), etc. — say what actually happened.
+        setError(getErrorMessage(err, "Tizimga kirishda xatolik yuz berdi. Keyinroq urinib ko'ring."));
+      }
     } finally {
       setLoading(false);
     }
@@ -89,6 +106,9 @@ const Login = () => {
                 autoComplete="current-password"
               />
             </div>
+            {sessionExpired && !error && (
+              <div className="notice-error">Sessiyangiz tugadi. Iltimos, qayta kiring.</div>
+            )}
             {error && <div className="notice-error">{error}</div>}
             <button id="login-btn" type="submit" className="btn-primary w-full" disabled={loading}>
               {loading ? 'Kirish…' : 'Kirish'}

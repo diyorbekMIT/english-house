@@ -5,6 +5,7 @@ import { useFeedback } from '../../contexts/FeedbackContext';
 import StatusBadge from '../../components/StatusBadge';
 import { getErrorMessage } from '../../lib/errors';
 import type { School, User } from './types';
+import UserActions from '../../components/UserActions';
 
 export const DirectorsPage = () => {
   const qc = useQueryClient();
@@ -172,6 +173,7 @@ export const DirectorsPage = () => {
                 <th>Maktab ID</th>
                 <th>Email</th>
                 <th>Holati</th>
+                <th>Amallar</th>
               </tr>
             </thead>
             <tbody>
@@ -182,10 +184,11 @@ export const DirectorsPage = () => {
                   <td>{d.schoolId ?? '—'}</td>
                   <td className="text-slate-500 text-xs">{d.email ?? '—'}</td>
                   <td><StatusBadge value={d.isActive ? 'true' : 'false'} type="active" /></td>
+                  <td><UserActions user={d} /></td>
                 </tr>
               ))}
               {directors.length === 0 && (
-                <tr><td colSpan={5} className="text-center py-6 text-slate-400">Direktorlar hali qo'shilmagan</td></tr>
+                <tr><td colSpan={6} className="text-center py-6 text-slate-400">Direktorlar hali qo'shilmagan</td></tr>
               )}
             </tbody>
           </table>

@@ -5,6 +5,7 @@ import { useFeedback } from '../../contexts/FeedbackContext';
 import StatusBadge from '../../components/StatusBadge';
 import { getErrorMessage } from '../../lib/errors';
 import type { User } from './types';
+import UserActions from '../../components/UserActions';
 
 export const AdminsPage = () => {
   const qc = useQueryClient();
@@ -120,6 +121,7 @@ export const AdminsPage = () => {
                 <th>Telefon (Login)</th>
                 <th>Holati</th>
                 <th>Yaratilgan sana</th>
+                <th>Amallar</th>
               </tr>
             </thead>
             <tbody>
@@ -129,9 +131,10 @@ export const AdminsPage = () => {
                   <td className="font-mono text-xs text-blue-900 font-bold">{a.phone}</td>
                   <td><StatusBadge value={a.isActive ? 'true' : 'false'} type="active" /></td>
                   <td className="text-slate-500 text-xs">{new Date(a.createdAt).toLocaleDateString()}</td>
+                  <td><UserActions user={a} /></td>
                 </tr>
               ))}
-              {admins.length === 0 && <tr><td colSpan={4} className="text-center py-6 text-slate-400">Sotuv menejerlari mavjud emas</td></tr>}
+              {admins.length === 0 && <tr><td colSpan={5} className="text-center py-6 text-slate-400">Sotuv menejerlari mavjud emas</td></tr>}
             </tbody>
           </table>
         </div>

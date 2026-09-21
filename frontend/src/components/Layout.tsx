@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from 'react';
 import { NavLink, Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import ChangePasswordModal from './ChangePasswordModal';
 
 interface NavItem { label: string; to: string; icon: ReactNode; }
 
@@ -89,6 +90,7 @@ const ROLE_LABELS: Record<string, string> = {
 
 const Layout = ({ children }: { children: ReactNode }) => {
   const { user, logout } = useAuth();
+  const [showChangePassword, setShowChangePassword] = useState(false);
   const navigate = useNavigate();
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const role = user?.role ?? '';
@@ -98,6 +100,7 @@ const Layout = ({ children }: { children: ReactNode }) => {
 
   return (
     <div className="flex min-h-screen" style={{ background: '#F8FAFC' }}>
+      {showChangePassword && <ChangePasswordModal onClose={() => setShowChangePassword(false)} />}
       {/* Mobile Drawer Backdrop */}
       {isMobileOpen && (
         <div
@@ -167,6 +170,12 @@ const Layout = ({ children }: { children: ReactNode }) => {
             <p className="text-xs font-semibold text-slate-900 truncate">{user?.fullName}</p>
             <p className="text-xs text-slate-500">{ROLE_LABELS[role]}</p>
           </div>
+          <button onClick={() => { setIsMobileOpen(false); setShowChangePassword(true); }} className="sidebar-link">
+            <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+            </svg>
+            Parolni o'zgartirish
+          </button>
           <button onClick={handleLogout} className="sidebar-link text-red-600 hover:bg-red-50">
             <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
@@ -229,6 +238,12 @@ const Layout = ({ children }: { children: ReactNode }) => {
             <p className="text-xs font-semibold text-slate-900 truncate">{user?.fullName}</p>
             <p className="text-xs text-slate-500">{ROLE_LABELS[role]}</p>
           </div>
+          <button onClick={() => setShowChangePassword(true)} className="sidebar-link">
+            <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+            </svg>
+            Parolni o'zgartirish
+          </button>
           <button id="logout-btn" onClick={handleLogout} className="sidebar-link text-red-600 hover:bg-red-50">
             <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
