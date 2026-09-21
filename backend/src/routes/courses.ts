@@ -6,9 +6,11 @@ import { authenticate, requireRole } from '../middleware/auth.js';
 import { logAudit } from '../middleware/audit.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { eq } from 'drizzle-orm';
+import { validateIdParams } from '../lib/params.js';
 
 export const coursesRouter = Router();
 coursesRouter.use(authenticate);
+validateIdParams(coursesRouter, 'id');
 
 const CourseSchema = z.object({
   name: z.string().min(1),

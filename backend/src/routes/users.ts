@@ -8,6 +8,7 @@ import { logAudit } from '../middleware/audit.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { RequestRejected, isUniqueViolation } from '../lib/httpErrors.js';
 import { and, desc, eq, ne, count } from 'drizzle-orm';
+import { validateIdParams, queryId, queryEnum } from '../lib/params.js';
 
 const isUniquePhoneViolation = isUniqueViolation;
 
@@ -53,6 +54,7 @@ const grantInitialBonus = async (
 
 export const usersRouter = Router();
 usersRouter.use(authenticate);
+validateIdParams(usersRouter, 'id');
 
 const BaseUserSchema = z.object({
   fullName: z.string().min(1),
@@ -246,7 +248,7 @@ usersRouter.get('/', requireRole('SUPER_ADMIN', 'MANAGER', 'SALES_MANAGER', 'ADM
         user.role === 'DIRECTOR'
           ? (dirSchoolId ? eq(users.schoolId, dirSchoolId) : eq(users.directorId, user.userId))
           : schoolFilter
-          ? eq(users.schoolId, Number(schoolFilter))
+          ? eq(users.schoolId, queryId(schoolFilter, 'schoolId')!)
           : undefined,
       ),
     );

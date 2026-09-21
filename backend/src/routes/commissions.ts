@@ -6,9 +6,11 @@ import { authenticate, requireRole } from '../middleware/auth.js';
 import { logAudit } from '../middleware/audit.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { and, desc, eq, inArray, ne } from 'drizzle-orm';
+import { validateIdParams, queryId, queryEnum } from '../lib/params.js';
 
 export const commissionsRouter = Router();
 commissionsRouter.use(authenticate);
+validateIdParams(commissionsRouter, 'id');
 
 commissionsRouter.get(
   '/',
@@ -25,11 +27,11 @@ commissionsRouter.get(
     } else if (user.role === 'DIRECTOR') {
       conditions.push(eq(commissions.userId, user.userId));
     } else if (userIdFilter) {
-      conditions.push(eq(commissions.userId, Number(userIdFilter)));
+      conditions.push(eq(commissions.userId, queryId(userIdFilter, 'userId')!));
     }
 
     if (status) {
-      conditions.push(eq(commissions.status, String(status) as 'PENDING' | 'READY_TO_PAY' | 'PAID' | 'CANCELLED'));
+      conditions.push(eq(commissions.status, queryEnum(status, ['PENDING', 'READY_TO_PAY', 'PAID', 'CANCELLED'] as const, 'status')!));
     }
 
     const rows = await db

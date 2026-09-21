@@ -7,9 +7,11 @@ import { logAudit } from '../middleware/audit.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { getUserBalance } from '../lib/balance.js';
 import { and, desc, eq } from 'drizzle-orm';
+import { validateIdParams, queryId, queryEnum } from '../lib/params.js';
 
 export const payoutsRouter = Router();
 payoutsRouter.use(authenticate);
+validateIdParams(payoutsRouter, 'id', 'userId');
 
 const CreatePayoutSchema = z.object({
   receiverId: z.number().int(),
@@ -118,11 +120,11 @@ payoutsRouter.get(
     if (user.role === 'DIRECTOR' || user.role === 'TEACHER') {
       conditions.push(eq(payouts.receiverId, user.userId));
     } else if (receiverId) {
-      conditions.push(eq(payouts.receiverId, Number(receiverId)));
+      conditions.push(eq(payouts.receiverId, queryId(receiverId, 'receiverId')!));
     }
 
     if (status) {
-      conditions.push(eq(payouts.status, String(status) as 'PENDING' | 'COMPLETED' | 'CANCELLED'));
+      conditions.push(eq(payouts.status, queryEnum(status, ['PENDING', 'COMPLETED', 'CANCELLED'] as const, 'status')!));
     }
 
     const rows = await db

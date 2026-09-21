@@ -7,9 +7,11 @@ import { logAudit } from '../middleware/audit.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { RequestRejected, isUniqueViolation } from '../lib/httpErrors.js';
 import { and, or, desc, eq, like, inArray, notInArray, isNull, SQL } from 'drizzle-orm';
+import { validateIdParams, queryId, queryEnum } from '../lib/params.js';
 
 export const studentsRouter = Router();
 studentsRouter.use(authenticate);
+validateIdParams(studentsRouter, 'id');
 
 export const normalizePhone = (phone: string): string => {
   const digits = phone.replace(/\D/g, '');
@@ -250,10 +252,14 @@ studentsRouter.get(
         ),
       );
     }
-    if (callStatus) conditions.push(eq(students.callStatus, String(callStatus) as typeof students.$inferSelect.callStatus));
-    if (studyStatus) conditions.push(eq(students.studyStatus, String(studyStatus) as typeof students.$inferSelect.studyStatus));
-    if (schoolId) conditions.push(eq(students.schoolId, Number(schoolId)));
-    if (teacherId) conditions.push(eq(students.teacherId, Number(teacherId)));
+    const callStatusFilter = queryEnum(callStatus, CALL_STATUS_VALUES, 'callStatus');
+    const studyStatusFilter = queryEnum(studyStatus, ['ACTIVE', 'NOACTIVE'] as const, 'studyStatus');
+    const schoolIdFilter = queryId(schoolId, 'schoolId');
+    const teacherIdFilter = queryId(teacherId, 'teacherId');
+    if (callStatusFilter) conditions.push(eq(students.callStatus, callStatusFilter));
+    if (studyStatusFilter) conditions.push(eq(students.studyStatus, studyStatusFilter));
+    if (schoolIdFilter) conditions.push(eq(students.schoolId, schoolIdFilter));
+    if (teacherIdFilter) conditions.push(eq(students.teacherId, teacherIdFilter));
     // Powers the Admin panel: only students a Sales Manager has already taken through
     // their first payment — that's the hand-off point where the work becomes Admin's.
     if (hasFirstPayment === 'true') {

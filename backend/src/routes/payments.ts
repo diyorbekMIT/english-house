@@ -7,9 +7,16 @@ import { logAudit } from '../middleware/audit.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { RequestRejected, isUniqueViolation } from '../lib/httpErrors.js';
 import { and, desc, eq, inArray, isNull } from 'drizzle-orm';
+import { validateIdParams } from '../lib/params.js';
 
 export const paymentsRouter = Router({ mergeParams: true });
 paymentsRouter.use(authenticate);
+validateIdParams(paymentsRouter, 'paymentId');
+// :studentId belongs to the mount path (/students/:studentId/monthly-payments)
+paymentsRouter.use((req, _res, next) => {
+  if (/^[1-9]\d{0,8}$/.test(String(req.params['studentId']))) next();
+  else next(new RequestRejected(400, 'Invalid studentId'));
+});
 
 const PaymentSchema = z.object({
   amountUzs: z.number().int().positive().max(2_000_000_000),

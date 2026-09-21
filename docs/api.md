@@ -7,7 +7,7 @@ Roles: `SUPER_ADMIN` (CEO), `MANAGER`, `SALES_MANAGER`, `ADMIN`, `DIRECTOR`, `TE
 
 - **Auth**: `Authorization: Bearer <token>` on everything except `POST /auth/login` and `GET /health`.
 - **Sessions are re-checked on every request.** The token only proves identity (`userId`, 12 h lifetime, HS256). Role, school and active flag are read from the database each time, so deactivating a user or changing their role takes effect on the next call (`401 Account disabled or removed`).
-- **Errors**: `{ "error": "..." }` (or a zod `flatten()` object on validation errors). `400` validation, `401` no/invalid session, `403` wrong role, `404` not found *or out of scope*, `409` conflict, `413` body over 100 kB, `429` too many failed logins.
+- **Errors**: `{ "error": "..." }` (or a zod `flatten()` object on validation errors). `400` validation (including malformed ids and unknown filter values — e.g. `GET /students/abc`, `?status=bogus`), `401` no/invalid session, `403` wrong role, `404` not found *or out of scope*, `409` conflict, `413` body over 100 kB, `429` too many failed logins.
 - **Out-of-scope reads answer `404`**, not `403`, so ids can't be probed (a teacher asking for another teacher's student, a director for another school's user, anyone but the CEO for the CEO).
 - **Percents** are stored and sent as integer basis points (`1000` = 10.00 %).
 - **Audit**: every mutation writes an `audit_logs` row (in the same transaction for money changes). The table is append-only at the database level.

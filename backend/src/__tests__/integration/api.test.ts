@@ -408,3 +408,37 @@ describe('unique constraint handling', () => {
     expect((await api().patch(`/students/${s2}`).set(bearer(ceo.token)).send({ phone })).status).toBe(409);
   });
 });
+
+// Malformed ids and filter values used to reach the database and come back as 500s.
+describe('input validation', () => {
+  it('answers 400 (not 500) for malformed ids in the path', async () => {
+    const sm = await makeUser('SALES_MANAGER');
+    for (const bad of ['abc', '0', '-5', '1.5', '99999999999']) {
+      expect((await api().get(`/students/${bad}`).set(bearer(ceo.token))).status, `students/${bad}`).toBe(400);
+    }
+    expect((await api().get('/students/999999999').set(bearer(ceo.token))).status).toBe(404); // valid but absent
+    expect((await api().patch('/commissions/abc/mark-paid').set(bearer(ceo.token))).status).toBe(400);
+    expect((await api().get('/payouts/balance/abc').set(bearer(ceo.token))).status).toBe(400);
+    expect((await api().post('/students/abc/monthly-payments').set(bearer(sm.token)).send({ amountUzs: 1000, paidForMonth: '2026-09' })).status).toBe(400);
+    expect((await api().patch('/students/1/monthly-payments/xyz/void').set(bearer(ceo.token)).send({ reason: 'x' })).status).toBe(400);
+  });
+
+  it('answers 400 for bad filter values and still honours good ones', async () => {
+    expect((await api().get('/students?callStatus=BOGUS').set(bearer(ceo.token))).status).toBe(400);
+    expect((await api().get('/students?schoolId=abc').set(bearer(ceo.token))).status).toBe(400);
+    expect((await api().get('/commissions?status=nope').set(bearer(ceo.token))).status).toBe(400);
+    expect((await api().get('/commissions?userId=abc').set(bearer(ceo.token))).status).toBe(400);
+    expect((await api().get('/withdrawals?status=nope').set(bearer(ceo.token))).status).toBe(400);
+    expect((await api().get('/payouts?status=nope').set(bearer(ceo.token))).status).toBe(400);
+    expect((await api().get('/audit-logs?entityId=abc').set(bearer(ceo.token))).status).toBe(400);
+
+    expect((await api().get('/students?callStatus=WAITING').set(bearer(ceo.token))).status).toBe(200);
+    expect((await api().get('/commissions?status=PENDING').set(bearer(ceo.token))).status).toBe(200);
+    expect((await api().get('/withdrawals?status=PENDING').set(bearer(ceo.token))).status).toBe(200);
+  });
+
+  it('reports which input was wrong', async () => {
+    const res = await api().get('/students?callStatus=BOGUS').set(bearer(ceo.token));
+    expect(res.body.error).toBe('Invalid callStatus');
+  });
+});

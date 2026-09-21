@@ -4,6 +4,7 @@ import { auditLogs, users } from '../../db/schema.js';
 import { authenticate, requireRole } from '../middleware/auth.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { desc, eq, and, gte, lte, type SQL } from 'drizzle-orm';
+import { validateIdParams, queryId, queryEnum } from '../lib/params.js';
 
 export const auditLogsRouter = Router();
 auditLogsRouter.use(authenticate);
@@ -18,13 +19,13 @@ auditLogsRouter.get(
     const conditions: SQL[] = [];
 
     if (actorUserId) {
-      conditions.push(eq(auditLogs.actorUserId, Number(actorUserId)));
+      conditions.push(eq(auditLogs.actorUserId, queryId(actorUserId, 'actorUserId')!));
     }
     if (entityType) {
       conditions.push(eq(auditLogs.entityType, String(entityType)));
     }
     if (entityId) {
-      conditions.push(eq(auditLogs.entityId, Number(entityId)));
+      conditions.push(eq(auditLogs.entityId, queryId(entityId, 'entityId')!));
     }
     if (action) {
       conditions.push(eq(auditLogs.action, String(action)));

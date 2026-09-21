@@ -8,9 +8,11 @@ import { asyncHandler } from '../middleware/asyncHandler.js';
 import { RequestRejected, isUniqueViolation } from '../lib/httpErrors.js';
 import { computeUserWithdrawEligibility } from '../lib/withdraw.js';
 import { and, desc, eq, sql } from 'drizzle-orm';
+import { validateIdParams, queryId, queryEnum } from '../lib/params.js';
 
 export const withdrawalsRouter = Router();
 withdrawalsRouter.use(authenticate);
+validateIdParams(withdrawalsRouter, 'id');
 
 // The CEO can attach a note to every status change. Optional when approving or
 // handing over, required when rejecting (the teacher/director needs to know why).
@@ -117,11 +119,11 @@ withdrawalsRouter.get(
     if (user.role === 'TEACHER' || user.role === 'DIRECTOR') {
       conditions.push(eq(withdrawRequests.userId, user.userId));
     } else if (userIdFilter) {
-      conditions.push(eq(withdrawRequests.userId, Number(userIdFilter)));
+      conditions.push(eq(withdrawRequests.userId, queryId(userIdFilter, 'userId')!));
     }
 
     if (status) {
-      conditions.push(eq(withdrawRequests.status, String(status) as 'PENDING' | 'VERIFIED' | 'GIVEN' | 'REJECTED'));
+      conditions.push(eq(withdrawRequests.status, queryEnum(status, ['PENDING', 'VERIFIED', 'GIVEN', 'REJECTED'] as const, 'status')!));
     }
 
     const rows = await db

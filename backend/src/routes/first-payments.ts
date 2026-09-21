@@ -4,6 +4,7 @@ import { monthlyPayments, students, schools, users } from '../../db/schema.js';
 import { authenticate, requireRole } from '../middleware/auth.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { and, desc, eq, inArray, isNull } from 'drizzle-orm';
+import { validateIdParams, queryId, queryEnum } from '../lib/params.js';
 
 export const firstPaymentsRouter = Router();
 firstPaymentsRouter.use(authenticate);
@@ -16,8 +17,10 @@ firstPaymentsRouter.get(
     const { schoolId, teacherId } = req.query;
 
     const conditions = [eq(monthlyPayments.isFirstPayment, true), isNull(monthlyPayments.voidedAt)];
-    if (schoolId) conditions.push(eq(students.schoolId, Number(schoolId)));
-    if (teacherId) conditions.push(eq(students.teacherId, Number(teacherId)));
+    const schoolIdFilter = queryId(schoolId, 'schoolId');
+    const teacherIdFilter = queryId(teacherId, 'teacherId');
+    if (schoolIdFilter) conditions.push(eq(students.schoolId, schoolIdFilter));
+    if (teacherIdFilter) conditions.push(eq(students.teacherId, teacherIdFilter));
 
     const rows = await db
       .select({

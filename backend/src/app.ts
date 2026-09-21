@@ -15,6 +15,7 @@ import { auditLogsRouter } from './routes/audit-logs.js';
 import { schoolsRouter } from './routes/schools.js';
 import { coursesRouter } from './routes/courses.js';
 import { analyticsRouter } from './routes/analytics.js';
+import { RequestRejected } from './lib/httpErrors.js';
 
 export const app = express();
 
@@ -53,6 +54,10 @@ app.get('/health', (_req, res) => res.json({ status: 'ok' }));
 // so without this a single failing request (e.g. a DB error) crashes the whole
 // process instead of just returning a 500 to that request.
 app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  if (err instanceof RequestRejected) {
+    if (!res.headersSent) res.status(err.status).json({ error: err.message });
+    return;
+  }
   // Client mistakes raised by Express itself (oversized or malformed JSON body) carry a
   // 4xx status — answer with it instead of a misleading 500.
   const status = (err as { status?: number; statusCode?: number } | null)?.status
