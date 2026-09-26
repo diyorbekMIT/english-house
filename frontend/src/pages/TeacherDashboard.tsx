@@ -12,11 +12,12 @@ import {
 } from '../components/Charts';
 import CommissionCreditCard from '../components/CommissionCreditCard';
 import PayoutHistoryList from '../components/PayoutHistoryList';
+import CommissionHistoryList from '../components/CommissionHistoryList';
 import WithdrawPanel from '../components/WithdrawPanel';
 import { useAuth } from '../contexts/AuthContext';
 import { formatUzs } from '../lib/format';
 import { getErrorMessage } from '../lib/errors';
-import type { Payout } from './superadmin/types';
+import type { EarnedCommission, Payout } from './superadmin/types';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 interface Student {
@@ -648,6 +649,10 @@ const NewStudentPage = () => {
 // ── 4. COMMISSIONS PAGE ────────────────────────────────────────────────────────
 const TeacherCommissionsPage = () => {
   const { user } = useAuth();
+  const { data: commissions = [] } = useQuery<EarnedCommission[]>({
+    queryKey: ['commissions'],
+    queryFn: () => api.get('/commissions').then((r) => r.data),
+  });
   const { data: payouts = [] } = useQuery<Payout[]>({
     queryKey: ['payouts'],
     queryFn: () => api.get('/payouts').then((r) => r.data),
@@ -690,6 +695,14 @@ const TeacherCommissionsPage = () => {
     </div>
   </div>
 </div>
+
+      <div className="card space-y-3">
+        <div>
+          <h2 className="section-title">Mukofotlar tarixi</h2>
+          <p className="text-xs text-slate-500 mt-0.5">Qaysi o'quvchingiz to'lov qildi va sizga qancha mukofot hisoblandi</p>
+        </div>
+        <CommissionHistoryList commissions={commissions} />
+      </div>
 
       <WithdrawPanel />
 

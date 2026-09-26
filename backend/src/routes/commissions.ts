@@ -1,11 +1,11 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { db } from '../../db/client.js';
-import { commissions } from '../../db/schema.js';
+import { commissions, students, monthlyPayments } from '../../db/schema.js';
 import { authenticate, requireRole } from '../middleware/auth.js';
 import { logAudit } from '../middleware/audit.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
-import { and, desc, eq, inArray, ne } from 'drizzle-orm';
+import { and, desc, eq, getTableColumns, inArray, ne } from 'drizzle-orm';
 import { validateIdParams, queryId, queryEnum } from '../lib/params.js';
 
 export const commissionsRouter = Router();
@@ -34,9 +34,18 @@ commissionsRouter.get(
       conditions.push(eq(commissions.status, queryEnum(status, ['PENDING', 'READY_TO_PAY', 'PAID', 'CANCELLED'] as const, 'status')!));
     }
 
+    // Each row says which student's payment earned it and for which month, so a teacher or
+    // director can see where their reward came from. The amount the student paid is left
+    // out on purpose: course prices stay CEO-only.
     const rows = await db
-      .select()
+      .select({
+        ...getTableColumns(commissions),
+        studentName: students.fullName,
+        paidForMonth: monthlyPayments.paidForMonth,
+      })
       .from(commissions)
+      .leftJoin(students, eq(commissions.studentId, students.id))
+      .leftJoin(monthlyPayments, eq(commissions.monthlyPaymentId, monthlyPayments.id))
       .where(conditions.length ? and(...conditions) : undefined)
       .orderBy(desc(commissions.createdAt));
 

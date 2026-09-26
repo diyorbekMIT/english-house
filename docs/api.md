@@ -54,7 +54,7 @@ Duplicate phone → `409`. Staff and the owning teacher/director get the existin
 
 ### Updates
 - `PATCH /students/:id` (CEO) — `{ fullName?, phone?, secondaryPhone?, schoolId?, teacherId?, courseId? }`; re-attribution is CEO-only because it changes who earns future commissions. Audit: `STUDENT_UPDATE` (with before/after).
-- `PATCH /students/:id/call-status` (SALES_MANAGER, CEO) — `MADE_PAYMENT` also activates the student.
+- `PATCH /students/:id/call-status` (SALES_MANAGER, CEO) — `MADE_PAYMENT` is only accepted once the student has a recorded, non-voided payment (`409` otherwise): recording the first payment sets it automatically, and that payment is what creates the teacher/director bonus. `MADE_PAYMENT` also activates the student.
 - `PATCH /students/:id/study-status` (ADMIN, SALES_MANAGER, CEO) — `ACTIVE` / `NOACTIVE`.
 
 Call statuses: `WAITING → CALLED → REGISTERED → FIRST_LESSON → STARTED_STUDYING → MADE_PAYMENT`, or `REJECTED`. Study statuses: `ACTIVE`, `NOACTIVE`.
@@ -83,7 +83,7 @@ Roles: SALES_MANAGER, MANAGER, CEO. Non-voided first payments; filters `schoolId
 
 ## Commissions & rules
 
-- `GET /commissions` — TEACHER/DIRECTOR: own; MANAGER, SALES_MANAGER, CEO: all (`?userId=`, `?status=`). Statuses: `PENDING`, `READY_TO_PAY`, `PAID`, `CANCELLED`.
+- `GET /commissions` — TEACHER/DIRECTOR: own; MANAGER, SALES_MANAGER, CEO: all (`?userId=`, `?status=`). Statuses: `PENDING`, `READY_TO_PAY`, `PAID`, `CANCELLED`. Each row also carries `studentName` and `paidForMonth` of the payment that earned it (never the amount the student paid).
 - `PATCH /commissions/:id/mark-paid` — **CEO only**, and only from `PENDING`/`READY_TO_PAY`. (Payouts to people go through the withdraw flow below.)
 - `PATCH /commissions/:id/status` — CEO; cannot touch `CANCELLED` rows.
 - `GET /commission-rules` — **CEO only** (percents, bonuses, special price and withdraw limits are confidential).
@@ -91,7 +91,7 @@ Roles: SALES_MANAGER, MANAGER, CEO. Non-voided first payments; filters `schoolId
 
 ## Balances & payouts
 
-Balance rule (`lib/balance.ts`): `CANCELLED` commissions count for nothing; withdrawals that are `VERIFIED`/`GIVEN` are removed from *pending* and from the balance; `balance = paid + pending + net completed payouts`.
+Balance rule (`lib/balance.ts`): `CANCELLED` commissions count for nothing; withdrawals that are `VERIFIED`/`GIVEN` are removed from *pending*; `balance = paid + net completed payouts` (the Bonus Card figure). Pending rewards (`commissionPendingUzs`, "Kutilayotgan mukofot") are reported separately and never added to the balance.
 
 - `GET /payouts/balance/:userId` (CEO, or the user themselves) → `{ commissionTotalUzs, commissionPaidUzs, commissionPendingUzs, payoutsNetUzs, balanceUzs }`; `GET /payouts/balances?role=` (CEO).
 - `POST /payouts`, `PATCH /payouts/:id/complete|cancel` (CEO) — manual credits/debits; `GET /payouts` (CEO all; DIRECTOR/TEACHER own). The one-time registration bonus is an auto-completed `INITIAL_BONUS` payout.

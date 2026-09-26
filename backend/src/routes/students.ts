@@ -457,17 +457,22 @@ const CALL_STATUS_VALUES = [
   'REJECTED',
 ] as const;
 
-// Reaching MADE_PAYMENT automatically activates the student — this is what
-// director/teacher commissions will be based on, so it's a one-way trigger,
-// not something callStatus can silently undo again. Returns undefined when no
-// automatic studyStatus change should happen.
+// Reaching MADE_PAYMENT also activates the student (the first payment does the same),
+// and no other call status silently undoes that. Returns undefined when no automatic
+// studyStatus change should happen.
 export const deriveStudyStatusOnCallStatusChange = (
   callStatus: (typeof CALL_STATUS_VALUES)[number],
 ): 'ACTIVE' | undefined => (callStatus === 'MADE_PAYMENT' ? 'ACTIVE' : undefined);
 
+export const MADE_PAYMENT_NEEDS_PAYMENT =
+  "Avval o'quvchining birinchi to'lovini kiriting — «To'lov qildi» holati to'lov saqlanganda avtomatik qo'yiladi va o'qituvchi/direktor bonusi shu to'lovdan hisoblanadi.";
+
 // Only SALES_MANAGER and SUPER_ADMIN (CEO) may change call status — this is the lead
 // pipeline SALES_MANAGER owns through MADE_PAYMENT; ADMIN takes over after that (see
 // /:id/study-status below), so ADMIN is deliberately not included here.
+// MADE_PAYMENT is only accepted once a (non-voided) payment is on record: the teacher and
+// director bonuses are created by recording the payment, so setting the status by hand
+// first would mark the student paid and active with no money and no bonus behind it.
 studentsRouter.patch(
   '/:id/call-status',
   requireRole('SALES_MANAGER', 'SUPER_ADMIN'),
@@ -498,30 +503,48 @@ studentsRouter.patch(
       updateData.callNote = parsed.data.callNote || null;
     }
 
-    const [student] = await db
-      .update(students)
-      .set(updateData)
-      .where(eq(students.id, id))
-      .returning();
-    if (!student) { res.status(404).json({ error: 'Student not found' }); return; }
+    try {
+      // Same student row lock as the payment and void routes, so a payment being voided
+      // at the same moment can't slip between the check and the update.
+      const student = await db.transaction(async (tx) => {
+        const [current] = await tx.select({ id: students.id }).from(students).where(eq(students.id, id)).for('update');
+        if (!current) throw new RequestRejected(404, 'Student not found');
 
-    const noteText = parsed.data.callNote ? ` | Izoh: "${parsed.data.callNote}"` : '';
-    await logAudit(db, {
-      actorUserId: req.user!.userId,
-      action: 'STUDENT_CALL_STATUS_UPDATE',
-      entityType: 'student',
-      entityId: id,
-      description: `Student '${student.fullName}' call_status changed to ${parsed.data.callStatus} by ${req.user!.fullName || req.user!.role}${noteText}`,
-      details: {
-        studentId: id,
-        studentName: student.fullName,
-        callStatus: parsed.data.callStatus,
-        callNote: parsed.data.callNote || null,
-        adminId: req.user!.userId,
-        adminName: req.user!.fullName,
-      },
-    });
-    res.json(student);
+        if (parsed.data.callStatus === 'MADE_PAYMENT') {
+          const [payment] = await tx
+            .select({ id: monthlyPayments.id })
+            .from(monthlyPayments)
+            .where(and(eq(monthlyPayments.studentId, id), isNull(monthlyPayments.voidedAt)))
+            .limit(1);
+          if (!payment) throw new RequestRejected(409, MADE_PAYMENT_NEEDS_PAYMENT);
+        }
+
+        const [updated] = await tx.update(students).set(updateData).where(eq(students.id, id)).returning();
+        if (!updated) throw new Error('Student update returned no row');
+
+        const noteText = parsed.data.callNote ? ` | Izoh: "${parsed.data.callNote}"` : '';
+        await logAudit(tx, {
+          actorUserId: req.user!.userId,
+          action: 'STUDENT_CALL_STATUS_UPDATE',
+          entityType: 'student',
+          entityId: id,
+          description: `Student '${updated.fullName}' call_status changed to ${parsed.data.callStatus} by ${req.user!.fullName || req.user!.role}${noteText}`,
+          details: {
+            studentId: id,
+            studentName: updated.fullName,
+            callStatus: parsed.data.callStatus,
+            callNote: parsed.data.callNote || null,
+            adminId: req.user!.userId,
+            adminName: req.user!.fullName,
+          },
+        });
+        return updated;
+      });
+      res.json(student);
+    } catch (err) {
+      if (err instanceof RequestRejected) { res.status(err.status).json({ error: err.message }); return; }
+      throw err;
+    }
   }),
 );
 

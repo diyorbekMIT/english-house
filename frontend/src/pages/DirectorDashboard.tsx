@@ -12,10 +12,11 @@ import {
 } from '../components/Charts';
 import CommissionCreditCard from '../components/CommissionCreditCard';
 import PayoutHistoryList from '../components/PayoutHistoryList';
+import CommissionHistoryList from '../components/CommissionHistoryList';
 import WithdrawPanel from '../components/WithdrawPanel';
 import { useAuth } from '../contexts/AuthContext';
 import { getErrorMessage } from '../lib/errors';
-import type { Payout } from './superadmin/types';
+import type { EarnedCommission, Payout } from './superadmin/types';
 import { formatUzs } from '../lib/format';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -1102,7 +1103,7 @@ const DirectorStudentsPage = () => {
 // ── 4. COMMISSIONS PAGE ────────────────────────────────────────────────────────
 const DirectorCommissionsPage = () => {
   const { user } = useAuth();
-  const { data: commissions = [] } = useQuery<{ id: number; amountUzs: number; type: string; status: string; createdAt: string }[]>({
+  const { data: commissions = [] } = useQuery<EarnedCommission[]>({
     queryKey: ['commissions'],
     queryFn: () => api.get('/commissions').then((r) => r.data),
   });
@@ -1152,32 +1153,12 @@ const DirectorCommissionsPage = () => {
   </div>
 </div>
 
-      <div className="card">
-        <div className="table-wrapper">
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Turi</th>
-                <th>Miqdori</th>
-                <th>Holati</th>
-                <th>Sana</th>
-              </tr>
-            </thead>
-            <tbody>
-              {commissions.map((c) => (
-                <tr key={c.id}>
-                  <td><span className="font-mono text-xs text-blue-900 bg-blue-50 px-2 py-0.5 rounded font-semibold">{c.type}</span></td>
-                  <td className="font-bold text-slate-900">{formatUzs(c.amountUzs)} UZS</td>
-                  <td><StatusBadge value={c.status} type="commission" /></td>
-                  <td className="text-slate-400 text-xs">{new Date(c.createdAt).toLocaleDateString()}</td>
-                </tr>
-              ))}
-              {commissions.length === 0 && (
-                <tr><td colSpan={4} className="text-center py-8 text-slate-400">Komissiyalar mavjud emas</td></tr>
-              )}
-            </tbody>
-          </table>
+      <div className="card space-y-3">
+        <div>
+          <h2 className="section-title">Mukofotlar tarixi</h2>
+          <p className="text-xs text-slate-500 mt-0.5">Qaysi o'quvchi to'lov qildi va sizga qancha mukofot hisoblandi</p>
         </div>
+        <CommissionHistoryList commissions={commissions} />
       </div>
 
       <WithdrawPanel />

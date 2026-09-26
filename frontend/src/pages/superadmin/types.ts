@@ -182,6 +182,19 @@ export interface Payout {
   createdAt: string;
 }
 
+// A reward earned from a student's payment, as GET /commissions returns it.
+export interface EarnedCommission {
+  id: number;
+  userId: number;
+  studentId: number | null;
+  amountUzs: number;
+  type: 'SIGNUP_BONUS' | 'MONTHLY_COMMISSION';
+  status: 'PENDING' | 'READY_TO_PAY' | 'PAID' | 'CANCELLED';
+  studentName: string | null;
+  paidForMonth: string | null;
+  createdAt: string;
+}
+
 export interface UserBalance {
   commissionTotalUzs: number;
   commissionPaidUzs: number;

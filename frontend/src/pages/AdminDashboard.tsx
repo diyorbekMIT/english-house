@@ -9,6 +9,7 @@ import { useAuth } from '../contexts/AuthContext';
 import StudentPaymentHistoryPage from './StudentPaymentHistoryPage';
 import FirstPaymentsPage from './FirstPaymentsPage';
 import { formatUzs } from '../lib/format';
+import { getErrorMessage } from '../lib/errors';
 import SharedPaymentModal from '../components/PaymentModal';
 
 interface Student {
@@ -52,6 +53,9 @@ const PaymentModal = ({ student, onClose }: { student: Student; onClose: () => v
 );
 
 // ── Call Status & Reason Modal ───────────────────────────────────────────────────
+// "To'lov qildi" is deliberately not offered here: that status comes only from recording
+// the payment with "+ To'lov" (Amallar), which is also what creates the teacher/director
+// bonus. The server refuses it as well while the student has no payment on record.
 const CallStatusModal = ({
   student,
   onClose,
@@ -91,13 +95,10 @@ const CallStatusModal = ({
       });
       onClose();
     },
-    onError: () => {
-      setError("Qo'ng'iroq holatini saqlashda xatolik yuz berdi");
-      showToast({
-        type: 'error',
-        title: 'Xatolik',
-        message: "Qo'ng'iroq holatini yangilashda xatolik yuz berdi.",
-      });
+    onError: (err: unknown) => {
+      const errText = getErrorMessage(err, "Qo'ng'iroq holatini saqlashda xatolik yuz berdi");
+      setError(errText);
+      showToast({ type: 'error', title: 'Xatolik', message: errText });
     },
   });
 
@@ -136,7 +137,6 @@ const CallStatusModal = ({
               { val: 'REGISTERED', label: 'Kursga yozildi', color: 'border-indigo-300 bg-indigo-50 text-indigo-900' },
               { val: 'FIRST_LESSON', label: 'Birinchi dars', color: 'border-teal-300 bg-teal-50 text-teal-900' },
               { val: 'STARTED_STUDYING', label: 'Dars boshladi', color: 'border-cyan-300 bg-cyan-50 text-cyan-900' },
-              { val: 'MADE_PAYMENT', label: "To'lov qildi", color: 'border-emerald-300 bg-emerald-50 text-emerald-900' },
               { val: 'REJECTED', label: 'Rad etildi', color: 'border-rose-300 bg-rose-50 text-rose-900' },
             ].map((opt) => (
               <button
@@ -159,11 +159,9 @@ const CallStatusModal = ({
               </button>
             ))}
           </div>
-          {callStatus === 'MADE_PAYMENT' && (
-            <p className="text-2xs text-emerald-700 font-medium mt-1.5">
-              ✓ Bu holat tanlanganda "O'qish holati" avtomatik ravishda Faolga o'tadi.
-            </p>
-          )}
+          <p className="text-[11px] text-slate-500 mt-1.5">
+            "To'lov qildi" holati to'lov "Amallar" ustunidagi "+ To'lov" orqali kiritilganda avtomatik qo'yiladi.
+          </p>
         </div>
 
         <div>

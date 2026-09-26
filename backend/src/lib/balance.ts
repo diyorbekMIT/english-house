@@ -25,7 +25,10 @@ interface PayoutLike {
 // without a database connection. claimedWithdrawUzs is the sum of any VERIFIED/GIVEN
 // withdraw requests — that money has been claimed and handed over outside the
 // commissions ledger (tracked separately in withdraw history), so it stops counting
-// as pending, and drops out of the balance entirely rather than moving to "paid".
+// as pending rather than moving to "paid".
+// balanceUzs is what the Teacher/Director Bonus Card shows: only money actually credited
+// (commissions marked paid plus completed payouts such as the registration bonus).
+// Pending rewards ("Kutilayotgan mukofot") are reported separately and never added to it.
 export const computeBalance = (
   allUserCommissions: CommissionLike[],
   userPayouts: PayoutLike[],
@@ -49,7 +52,7 @@ export const computeBalance = (
     commissionPaidUzs,
     commissionPendingUzs,
     payoutsNetUzs,
-    balanceUzs: commissionPaidUzs + commissionPendingUzs + payoutsNetUzs,
+    balanceUzs: commissionPaidUzs + payoutsNetUzs,
   };
 };
 

@@ -82,7 +82,7 @@ describe('Course-Based Bonus Calculation', () => {
 });
 
 describe('Balance Calculation', () => {
-  it('sums commissions and completed payouts into a single balance', () => {
+  it('the balance is paid commissions plus completed payouts; pending is reported separately', () => {
     const balance = computeBalance(
       [
         { amountUzs: 100_000, status: 'PAID' },
@@ -97,7 +97,18 @@ describe('Balance Calculation', () => {
     expect(balance.commissionPaidUzs).toBe(100_000);
     expect(balance.commissionPendingUzs).toBe(50_000);
     expect(balance.payoutsNetUzs).toBe(10_000_000);
-    expect(balance.balanceUzs).toBe(10_150_000);
+    expect(balance.balanceUzs).toBe(10_100_000);
+  });
+
+  it('a first-payment bonus waits in pending and does not raise the Bonus Card balance', () => {
+    // registration bonus 30,000 on the card, then 30% of a 250,000 special price earned
+    const balance = computeBalance(
+      [{ amountUzs: 75_000, status: 'PENDING' }],
+      [{ amountUzs: 30_000, type: 'INITIAL_BONUS', status: 'COMPLETED' }],
+    );
+
+    expect(balance.commissionPendingUzs).toBe(75_000);
+    expect(balance.balanceUzs).toBe(30_000);
   });
 
   it('excludes PENDING and CANCELLED payouts from the balance', () => {
@@ -125,15 +136,15 @@ describe('Balance Calculation', () => {
     expect(balance.balanceUzs).toBe(7_000_000);
   });
 
-  it('a verified/given withdraw claim drops out of pending and the total balance entirely', () => {
+  it('a verified/given withdraw claim drops out of pending and leaves the card balance alone', () => {
     const balance = computeBalance(
       [{ amountUzs: 210_000, status: 'PENDING' }],
-      [],
+      [{ amountUzs: 30_000, type: 'INITIAL_BONUS', status: 'COMPLETED' }],
       210_000, // fully claimed via a withdraw request
     );
 
     expect(balance.commissionPendingUzs).toBe(0);
-    expect(balance.balanceUzs).toBe(0);
+    expect(balance.balanceUzs).toBe(30_000);
   });
 
   it('a partial withdraw claim only reduces pending by the claimed amount', () => {
@@ -144,7 +155,7 @@ describe('Balance Calculation', () => {
     );
 
     expect(balance.commissionPendingUzs).toBe(100_000);
-    expect(balance.balanceUzs).toBe(100_000);
+    expect(balance.balanceUzs).toBe(0);
   });
 
   it('cancelled commissions (from voided payments) count toward nothing', () => {
@@ -158,7 +169,7 @@ describe('Balance Calculation', () => {
 
     expect(balance.commissionTotalUzs).toBe(50_000);
     expect(balance.commissionPendingUzs).toBe(50_000);
-    expect(balance.balanceUzs).toBe(50_000);
+    expect(balance.balanceUzs).toBe(0);
   });
 
   it('never lets a claim push pending balance negative', () => {

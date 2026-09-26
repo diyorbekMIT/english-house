@@ -265,6 +265,74 @@ describe('payments and commissions', () => {
   });
 });
 
+describe('marking a student as paid', () => {
+  let school: number, director: TestUser, teacher: TestUser, salesManager: TestUser;
+
+  const callStatus = (studentId: number, status: string) =>
+    api().patch(`/students/${studentId}/call-status`).set(bearer(salesManager.token)).send({ callStatus: status });
+  const balanceOf = async (u: TestUser) => (await api().get(`/payouts/balance/${u.id}`).set(bearer(u.token))).body;
+  const pendingReward = async (u: TestUser) => (await balanceOf(u)).commissionPendingUzs;
+
+  beforeAll(async () => {
+    school = await makeSchool('Paid-status school');
+    director = await makeUser('DIRECTOR', { schoolId: school });
+    teacher = await makeUser('TEACHER', { schoolId: school });
+    salesManager = await makeUser('SALES_MANAGER');
+    await setRules(ceo.token, { teacherFirstPaymentPercent: 3000, directorFirstPaymentPercent: 1500, specialPriceUzs: 250_000 });
+  });
+
+  it('refuses "To\'lov qildi" until a payment is recorded, so no one is marked paid without a bonus', async () => {
+    const s = await makeStudent({ teacherId: teacher.id, schoolId: school, directorId: director.id });
+    expect((await callStatus(s, 'STARTED_STUDYING')).status).toBe(200);
+
+    const refused = await callStatus(s, 'MADE_PAYMENT');
+    expect(refused.status).toBe(409);
+    expect(refused.body.error).toMatch(/birinchi to'lovini kiriting/);
+    const [st] = await db.select().from(students).where(eq(students.id, s));
+    expect(st!.callStatus).toBe('STARTED_STUDYING');
+    expect(st!.studyStatus).toBe('NOACTIVE');
+  });
+
+  it('recording the first payment marks the student paid and fills both pending rewards', async () => {
+    const s = await makeStudent({ fullName: 'Paid-status student', teacherId: teacher.id, schoolId: school, directorId: director.id });
+    const teacherBefore = await balanceOf(teacher);
+    const directorBefore = await balanceOf(director);
+
+    const paid = await api().post(`/students/${s}/monthly-payments`).set(bearer(salesManager.token)).send({ amountUzs: 250_000, paidForMonth: '2026-09' });
+    expect(paid.status).toBe(201);
+    const teacherAfter = await balanceOf(teacher);
+    const directorAfter = await balanceOf(director);
+    expect(teacherAfter.commissionPendingUzs).toBe(teacherBefore.commissionPendingUzs + 75_000); // 30% of 250,000
+    expect(directorAfter.commissionPendingUzs).toBe(directorBefore.commissionPendingUzs + 37_500); // 15% of 250,000
+    // The pending reward is not added to the Bonus Card balance.
+    expect(teacherAfter.balanceUzs).toBe(teacherBefore.balanceUzs);
+    expect(directorAfter.balanceUzs).toBe(directorBefore.balanceUzs);
+
+    // The teacher's reward history names the student and month, but not what the student paid.
+    const history = (await api().get('/commissions').set(bearer(teacher.token))).body as Record<string, unknown>[];
+    expect(history.every((c) => c['userId'] === teacher.id)).toBe(true);
+    const row = history.find((c) => c['studentId'] === s);
+    expect(row).toMatchObject({ studentName: 'Paid-status student', paidForMonth: '2026-09', type: 'SIGNUP_BONUS', amountUzs: 75_000 });
+    expect(JSON.stringify(row)).not.toContain('250000');
+
+    const [st] = await db.select().from(students).where(eq(students.id, s));
+    expect(st!.callStatus).toBe('MADE_PAYMENT');
+    expect(st!.studyStatus).toBe('ACTIVE');
+
+    // With a payment on record the status can be set back by hand, and that creates no extra bonus.
+    expect((await callStatus(s, 'CALLED')).status).toBe(200);
+    expect((await callStatus(s, 'MADE_PAYMENT')).status).toBe(200);
+    expect(await pendingReward(teacher)).toBe(teacherBefore.commissionPendingUzs + 75_000);
+  });
+
+  it('a voided payment does not count as a payment on record', async () => {
+    const s = await makeStudent({ teacherId: teacher.id, schoolId: school, directorId: director.id });
+    const first = (await api().post(`/students/${s}/monthly-payments`).set(bearer(salesManager.token)).send({ amountUzs: 250_000, paidForMonth: '2026-09' })).body;
+    expect((await api().patch(`/students/${s}/monthly-payments/${first.id}/void`).set(bearer(ceo.token)).send({ reason: 'test' })).status).toBe(200);
+    expect((await callStatus(s, 'MADE_PAYMENT')).status).toBe(409);
+  });
+});
+
 describe('withdrawals', () => {
   let school: number, director: TestUser, teacher: TestUser, studentId: number;
 
@@ -305,7 +373,7 @@ describe('withdrawals', () => {
     expect(e.withdrawableUzs).toBe(600_000);
   });
 
-  it('verifying reduces the balance; rejecting a pending request frees the amount', async () => {
+  it('verifying takes the amount out of pending; rejecting a pending request frees the amount', async () => {
     const t = await makeUser('TEACHER', { schoolId: school });
     await addPendingCommission(t.id, studentId, 300_000);
     const first = (await request(t)).body;

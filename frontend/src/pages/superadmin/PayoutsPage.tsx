@@ -154,6 +154,7 @@ export const PayoutsPage = () => {
                 <th>Rol</th>
                 <th>Telefon</th>
                 <th>Balans</th>
+                <th>Kutilmoqda</th>
               </tr>
             </thead>
             <tbody>
@@ -163,10 +164,11 @@ export const PayoutsPage = () => {
                   <td className="text-xs text-slate-500">{b.role === 'DIRECTOR' ? 'Direktor' : "O'qituvchi"}</td>
                   <td className="font-mono text-xs">{b.phone}</td>
                   <td className="font-bold text-slate-900">{formatUzs(b.balanceUzs)} UZS</td>
+                  <td className="font-semibold text-amber-600">{formatUzs(b.commissionPendingUzs)} UZS</td>
                 </tr>
               ))}
               {!balancesLoading && filteredBalances.length === 0 && (
-                <tr><td colSpan={4} className="text-center py-6 text-slate-400">Hech kim topilmadi</td></tr>
+                <tr><td colSpan={5} className="text-center py-6 text-slate-400">Hech kim topilmadi</td></tr>
               )}
             </tbody>
           </table>
